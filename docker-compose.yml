@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  nmap-scanner:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./scan_results:/app/scan_results
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=0
+    restart: unless-stopped
+    # Add capabilities for nmap to work properly
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    # Optional: Use host network for better scanning capabilities
+    # network_mode: host
