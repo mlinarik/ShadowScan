@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+"""
+ShadowScan - Security Scanning Suite
+Author: mlinarik
+"""
+
 from flask import Flask, render_template, request, jsonify, send_file
 import nmap
 import json
