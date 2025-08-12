@@ -24,6 +24,10 @@ from urllib.parse import urlparse, urljoin, quote
 from urllib.robotparser import RobotFileParser
 from bs4 import BeautifulSoup
 from collections import deque, defaultdict
+import dns.resolver
+import dns.zone
+import dns.query
+import dns.rdatatype
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'
@@ -42,6 +46,9 @@ ssl_scan_results = {}
 
 # Store web crawler results
 crawler_results = {}
+
+# Store DNS toolkit results
+dns_results = {}
 
 class NmapScanner:
     def __init__(self):
@@ -1144,10 +1151,415 @@ class WebCrawler:
         
         return headers_info
 
+class DNSToolkit:
+    def __init__(self):
+        self.common_subdomains = [
+            'www', 'mail', 'ftp', 'admin', 'test', 'dev', 'staging', 'api', 
+            'cdn', 'blog', 'shop', 'store', 'secure', 'portal', 'webmail',
+            'mx', 'ns', 'ns1', 'ns2', 'dns', 'pop', 'imap', 'smtp', 'vpn',
+            'remote', 'support', 'help', 'app', 'mobile', 'old', 'new',
+            'beta', 'alpha', 'demo', 'sandbox', 'forum', 'chat', 'wiki',
+            'm', 'mobile', 'wap', 'video', 'images', 'img', 'static', 'assets'
+        ]
+        self.dns_servers = [
+            '8.8.8.8',        # Google
+            '8.8.4.4',        # Google
+            '1.1.1.1',        # Cloudflare
+            '1.0.0.1',        # Cloudflare
+            '208.67.222.222', # OpenDNS
+            '208.67.220.220'  # OpenDNS
+        ]
+    
+    def comprehensive_dns_analysis(self, domain, options):
+        """Perform comprehensive DNS analysis"""
+        start_time = time.time()
+        
+        # Validate domain
+        if not self._is_valid_domain(domain):
+            return {'error': 'Invalid domain format'}
+        
+        result = {
+            'timestamp': datetime.datetime.now().isoformat(),
+            'domain': domain,
+            'response_time_ms': 0,
+            'dns_records': {},
+            'zone_transfer': {},
+            'subdomain_enumeration': [],
+            'dns_security': {},
+            'nameservers': [],
+            'dns_propagation': {},
+            'reverse_dns': {},
+            'dns_history': {}
+        }
+        
+        try:
+            # Basic DNS records lookup
+            if options.get('lookup_records', True):
+                result['dns_records'] = self._lookup_dns_records(domain)
+            
+            # Nameserver analysis
+            if options.get('analyze_nameservers', True):
+                result['nameservers'] = self._analyze_nameservers(domain)
+            
+            # Zone transfer attempt
+            if options.get('attempt_zone_transfer', True):
+                result['zone_transfer'] = self._attempt_zone_transfer(domain, result['nameservers'])
+            
+            # Subdomain enumeration
+            if options.get('enumerate_subdomains', True):
+                max_subdomains = options.get('max_subdomains', 20)
+                result['subdomain_enumeration'] = self._enumerate_subdomains(domain, max_subdomains)
+            
+            # DNS security analysis
+            if options.get('security_analysis', True):
+                result['dns_security'] = self._analyze_dns_security(domain)
+            
+            # DNS propagation check
+            if options.get('check_propagation', True):
+                result['dns_propagation'] = self._check_dns_propagation(domain)
+            
+            # Reverse DNS lookup
+            if options.get('reverse_dns', True):
+                result['reverse_dns'] = self._reverse_dns_lookup(domain)
+            
+        except Exception as e:
+            result['error'] = str(e)
+        
+        result['response_time_ms'] = int((time.time() - start_time) * 1000)
+        return result
+    
+    def _is_valid_domain(self, domain):
+        """Validate domain format"""
+        import re
+        pattern = r'^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$'
+        return re.match(pattern, domain) is not None
+    
+    def _lookup_dns_records(self, domain):
+        """Lookup various DNS record types"""
+        records = {}
+        record_types = ['A', 'AAAA', 'MX', 'NS', 'TXT', 'CNAME', 'SOA', 'PTR']
+        
+        for record_type in record_types:
+            try:
+                resolver = dns.resolver.Resolver()
+                resolver.timeout = 5
+                
+                answers = resolver.resolve(domain, record_type)
+                records[record_type] = []
+                
+                for answer in answers:
+                    record_data = {
+                        'value': str(answer),
+                        'ttl': answers.ttl if hasattr(answers, 'ttl') else 'Unknown'
+                    }
+                    
+                    # Add specific data for MX records
+                    if record_type == 'MX':
+                        record_data['priority'] = answer.preference
+                        record_data['exchange'] = str(answer.exchange)
+                    
+                    # Add specific data for SOA records
+                    elif record_type == 'SOA':
+                        record_data['mname'] = str(answer.mname)
+                        record_data['rname'] = str(answer.rname)
+                        record_data['serial'] = answer.serial
+                        record_data['refresh'] = answer.refresh
+                        record_data['retry'] = answer.retry
+                        record_data['expire'] = answer.expire
+                        record_data['minimum'] = answer.minimum
+                    
+                    records[record_type].append(record_data)
+                    
+            except dns.resolver.NXDOMAIN:
+                records[record_type] = {'error': 'Domain not found'}
+            except dns.resolver.NoAnswer:
+                records[record_type] = {'error': 'No records found'}
+            except Exception as e:
+                records[record_type] = {'error': str(e)}
+        
+        return records
+    
+    def _analyze_nameservers(self, domain):
+        """Analyze domain nameservers"""
+        nameservers = []
+        
+        try:
+            resolver = dns.resolver.Resolver()
+            ns_records = resolver.resolve(domain, 'NS')
+            
+            for ns in ns_records:
+                ns_name = str(ns).rstrip('.')
+                ns_info = {
+                    'nameserver': ns_name,
+                    'ip_addresses': [],
+                    'response_time': 0
+                }
+                
+                # Get IP addresses for nameserver
+                try:
+                    ns_start = time.time()
+                    ns_resolver = dns.resolver.Resolver()
+                    ns_resolver.nameservers = [socket.gethostbyname(ns_name)]
+                    
+                    # Test response time
+                    test_query = ns_resolver.resolve(domain, 'A')
+                    ns_info['response_time'] = int((time.time() - ns_start) * 1000)
+                    
+                    # Get IP addresses
+                    a_records = dns.resolver.resolve(ns_name, 'A')
+                    for a in a_records:
+                        ns_info['ip_addresses'].append(str(a))
+                        
+                except Exception as e:
+                    ns_info['error'] = str(e)
+                
+                nameservers.append(ns_info)
+                
+        except Exception as e:
+            return {'error': str(e)}
+        
+        return nameservers
+    
+    def _attempt_zone_transfer(self, domain, nameservers):
+        """Attempt DNS zone transfer"""
+        zone_transfer = {'attempted': [], 'successful': [], 'failed': []}
+        
+        if isinstance(nameservers, dict) and 'error' in nameservers:
+            return {'error': 'No nameservers available'}
+        
+        for ns_info in nameservers[:3]:  # Try first 3 nameservers
+            ns_name = ns_info['nameserver']
+            zone_transfer['attempted'].append(ns_name)
+            
+            try:
+                # Get IP address of nameserver
+                ns_ip = socket.gethostbyname(ns_name)
+                
+                # Attempt zone transfer
+                zone = dns.zone.from_xfr(dns.query.xfr(ns_ip, domain, timeout=10))
+                
+                # Zone transfer successful
+                transfer_result = {
+                    'nameserver': ns_name,
+                    'ip': ns_ip,
+                    'records_count': len(zone.nodes),
+                    'records': []
+                }
+                
+                # Extract some records (limit to prevent huge responses)
+                for name, node in list(zone.nodes.items())[:50]:
+                    for rdataset in node.rdatasets:
+                        for rdata in rdataset:
+                            transfer_result['records'].append({
+                                'name': str(name),
+                                'type': dns.rdatatype.to_text(rdataset.rdtype),
+                                'value': str(rdata)
+                            })
+                
+                zone_transfer['successful'].append(transfer_result)
+                
+            except Exception as e:
+                zone_transfer['failed'].append({
+                    'nameserver': ns_name,
+                    'error': str(e)
+                })
+        
+        return zone_transfer
+    
+    def _enumerate_subdomains(self, domain, max_subdomains):
+        """Enumerate subdomains using common names"""
+        subdomains = []
+        
+        def check_subdomain(subdomain):
+            try:
+                full_domain = f"{subdomain}.{domain}"
+                resolver = dns.resolver.Resolver()
+                resolver.timeout = 3
+                
+                answers = resolver.resolve(full_domain, 'A')
+                ips = [str(answer) for answer in answers]
+                
+                return {
+                    'subdomain': full_domain,
+                    'ip_addresses': ips,
+                    'found': True
+                }
+            except Exception:
+                return {
+                    'subdomain': f"{subdomain}.{domain}",
+                    'found': False
+                }
+        
+        # Use threading for faster subdomain enumeration
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            subdomains_to_check = self.common_subdomains[:max_subdomains]
+            future_to_subdomain = {executor.submit(check_subdomain, sub): sub 
+                                 for sub in subdomains_to_check}
+            
+            for future in concurrent.futures.as_completed(future_to_subdomain):
+                result = future.result()
+                if result['found']:
+                    subdomains.append(result)
+        
+        return subdomains
+    
+    def _analyze_dns_security(self, domain):
+        """Analyze DNS security features"""
+        security = {
+            'dnssec': {'enabled': False, 'details': {}},
+            'caa_records': [],
+            'spf_record': {},
+            'dmarc_record': {},
+            'dkim_records': []
+        }
+        
+        try:
+            resolver = dns.resolver.Resolver()
+            
+            # Check DNSSEC
+            try:
+                # Try to get DNSKEY record
+                dnskey_answers = resolver.resolve(domain, 'DNSKEY')
+                security['dnssec']['enabled'] = True
+                security['dnssec']['details']['dnskey_count'] = len(dnskey_answers)
+                
+                # Try to get DS record from parent zone
+                try:
+                    ds_answers = resolver.resolve(domain, 'DS')
+                    security['dnssec']['details']['ds_records'] = len(ds_answers)
+                except:
+                    pass
+                    
+            except:
+                security['dnssec']['enabled'] = False
+            
+            # Check CAA records
+            try:
+                caa_answers = resolver.resolve(domain, 'CAA')
+                for caa in caa_answers:
+                    security['caa_records'].append({
+                        'flags': caa.flags,
+                        'tag': caa.tag,
+                        'value': caa.value.decode('utf-8') if isinstance(caa.value, bytes) else str(caa.value)
+                    })
+            except:
+                pass
+            
+            # Check SPF record
+            try:
+                txt_answers = resolver.resolve(domain, 'TXT')
+                for txt in txt_answers:
+                    txt_value = str(txt).strip('"')
+                    if txt_value.startswith('v=spf1'):
+                        security['spf_record'] = {
+                            'found': True,
+                            'record': txt_value,
+                            'mechanisms': txt_value.split()[1:] if len(txt_value.split()) > 1 else []
+                        }
+                        break
+                else:
+                    security['spf_record'] = {'found': False}
+            except:
+                security['spf_record'] = {'found': False, 'error': 'Query failed'}
+            
+            # Check DMARC record
+            try:
+                dmarc_domain = f"_dmarc.{domain}"
+                dmarc_answers = resolver.resolve(dmarc_domain, 'TXT')
+                for txt in dmarc_answers:
+                    txt_value = str(txt).strip('"')
+                    if txt_value.startswith('v=DMARC1'):
+                        security['dmarc_record'] = {
+                            'found': True,
+                            'record': txt_value
+                        }
+                        break
+                else:
+                    security['dmarc_record'] = {'found': False}
+            except:
+                security['dmarc_record'] = {'found': False, 'error': 'Query failed'}
+                
+        except Exception as e:
+            security['error'] = str(e)
+        
+        return security
+    
+    def _check_dns_propagation(self, domain):
+        """Check DNS propagation across different servers"""
+        propagation = {}
+        
+        for dns_server in self.dns_servers[:4]:  # Check first 4 DNS servers
+            try:
+                resolver = dns.resolver.Resolver()
+                resolver.nameservers = [dns_server]
+                resolver.timeout = 5
+                
+                start_time = time.time()
+                answers = resolver.resolve(domain, 'A')
+                response_time = int((time.time() - start_time) * 1000)
+                
+                propagation[dns_server] = {
+                    'server_name': self._get_dns_server_name(dns_server),
+                    'response_time': response_time,
+                    'ip_addresses': [str(answer) for answer in answers],
+                    'status': 'success'
+                }
+                
+            except Exception as e:
+                propagation[dns_server] = {
+                    'server_name': self._get_dns_server_name(dns_server),
+                    'status': 'failed',
+                    'error': str(e)
+                }
+        
+        return propagation
+    
+    def _get_dns_server_name(self, ip):
+        """Get friendly name for DNS server"""
+        dns_names = {
+            '8.8.8.8': 'Google DNS',
+            '8.8.4.4': 'Google DNS',
+            '1.1.1.1': 'Cloudflare DNS',
+            '1.0.0.1': 'Cloudflare DNS',
+            '208.67.222.222': 'OpenDNS',
+            '208.67.220.220': 'OpenDNS'
+        }
+        return dns_names.get(ip, f'DNS Server ({ip})')
+    
+    def _reverse_dns_lookup(self, domain):
+        """Perform reverse DNS lookup"""
+        reverse_dns = {}
+        
+        try:
+            # First get IP addresses
+            resolver = dns.resolver.Resolver()
+            a_records = resolver.resolve(domain, 'A')
+            
+            for a_record in a_records:
+                ip = str(a_record)
+                try:
+                    # Perform reverse DNS lookup
+                    reverse_name = socket.gethostbyaddr(ip)[0]
+                    reverse_dns[ip] = {
+                        'reverse_name': reverse_name,
+                        'matches_original': reverse_name.lower() == domain.lower()
+                    }
+                except Exception as e:
+                    reverse_dns[ip] = {
+                        'error': str(e),
+                        'reverse_name': None
+                    }
+                    
+        except Exception as e:
+            reverse_dns['error'] = str(e)
+        
+        return reverse_dns
+
 scanner = NmapScanner()
 lookup_tool = IPDomainLookup()
 ssl_scanner = SSLTLSScanner()
 web_crawler = WebCrawler()
+dns_toolkit = DNSToolkit()
 
 @app.route('/')
 def home():
@@ -1263,6 +1675,52 @@ def download_crawler_result(crawl_id):
     result = crawler_results[crawl_id]
     target_clean = result['target_url'].replace('://', '_').replace('/', '_').replace(':', '_')
     filename = f"crawler_{target_clean}_{crawl_id[:8]}.json"
+    filepath = os.path.join('scan_results', filename)
+    
+    # Ensure directory exists
+    os.makedirs('scan_results', exist_ok=True)
+    
+    # Save result to file
+    with open(filepath, 'w') as f:
+        json.dump(result, f, indent=2)
+    
+    return send_file(filepath, as_attachment=True, download_name=filename)
+
+@app.route('/dns')
+def dns_page():
+    return render_template('dns.html')
+
+@app.route('/dns', methods=['POST'])
+def perform_dns_analysis():
+    data = request.get_json()
+    
+    domain = data.get('domain')
+    options = data.get('options', {})
+    
+    if not domain:
+        return jsonify({'error': 'Domain is required'}), 400
+    
+    # Generate DNS analysis ID
+    dns_id = str(uuid.uuid4())
+    
+    # Perform DNS analysis
+    result = dns_toolkit.comprehensive_dns_analysis(domain, options)
+    result['dns_id'] = dns_id
+    
+    # Store result
+    dns_results[dns_id] = result
+    
+    return jsonify(result)
+
+@app.route('/dns/<dns_id>/download')
+def download_dns_result(dns_id):
+    if dns_id not in dns_results:
+        return jsonify({'error': 'DNS analysis not found'}), 404
+    
+    # Create filename
+    result = dns_results[dns_id]
+    domain_clean = result['domain'].replace('.', '_')
+    filename = f"dns_analysis_{domain_clean}_{dns_id[:8]}.json"
     filepath = os.path.join('scan_results', filename)
     
     # Ensure directory exists

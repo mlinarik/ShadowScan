@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DNS Toolkit - ShadowScan</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .container {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border: none;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px 20px 0 0 !important;
+            padding: 1.5rem;
+            border: none;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 10px;
+            padding: 0.75rem 2rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .form-control, .form-select {
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            padding: 0.75rem 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.25);
+        }
+        
+        .progress {
+            border-radius: 10px;
+            height: 8px;
+            background-color: rgba(102, 126, 234, 0.1);
+        }
+        
+        .progress-bar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+        }
+        
+        .record-item {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            border-left: 4px solid #667eea;
+        }
+        
+        .record-type-A { border-left-color: #28a745; }
+        .record-type-AAAA { border-left-color: #17a2b8; }
+        .record-type-MX { border-left-color: #ffc107; }
+        .record-type-NS { border-left-color: #6f42c1; }
+        .record-type-TXT { border-left-color: #fd7e14; }
+        .record-type-CNAME { border-left-color: #20c997; }
+        .record-type-SOA { border-left-color: #e83e8c; }
+        
+        .subdomain-found {
+            background: #d1edff;
+            border-left-color: #0066cc;
+        }
+        
+        .security-good {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .security-bad {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .security-warning {
+            color: #ffc107;
+            font-weight: bold;
+        }
+        
+        .propagation-success {
+            background: #d4edda;
+            border-left-color: #28a745;
+        }
+        
+        .propagation-failed {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+        }
+        
+        .nav-link {
+            color: white;
+            font-weight: 500;
+        }
+        
+        .nav-link:hover {
+            color: #f8f9fa;
+        }
+        
+        .accordion-button:not(.collapsed) {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+        
+        .zone-transfer-success {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+        }
+        
+        .dns-server-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Navigation -->
+        <nav class="navbar navbar-expand-lg mb-4" style="background: rgba(255, 255, 255, 0.1); border-radius: 15px; backdrop-filter: blur(10px);">
+            <div class="container-fluid">
+                <a class="navbar-brand text-white fw-bold" href="/">
+                    <i class="bi bi-dns me-2"></i>ShadowScan
+                </a>
+                <div class="navbar-nav ms-auto">
+                    <a class="nav-link" href="/">Home</a>
+                    <a class="nav-link" href="/nmap">Nmap Scanner</a>
+                    <a class="nav-link" href="/lookup">IP/Domain Lookup</a>
+                    <a class="nav-link" href="/ssl">SSL/TLS Scanner</a>
+                    <a class="nav-link" href="/crawler">Web Crawler</a>
+                    <a class="nav-link active" href="/dns">DNS Toolkit</a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="mb-0">
+                            <i class="bi bi-dns me-2"></i>
+                            DNS Toolkit & Security Analysis
+                        </h3>
+                        <p class="mb-0 opacity-75">Comprehensive DNS record analysis, security testing, and subdomain enumeration</p>
+                    </div>
+                    <div class="card-body">
+                        <form id="dnsForm">
+                            <div class="row">
+                                <div class="col-md-8 mb-3">
+                                    <label for="domain" class="form-label fw-bold">
+                                        <i class="bi bi-globe me-1"></i>Domain
+                                    </label>
+                                    <input type="text" class="form-control" id="domain" name="domain" 
+                                           placeholder="e.g., example.com" required>
+                                    <div class="form-text">Enter the domain name to analyze</div>
+                                </div>
+                                <div class="col-md-4 mb-3 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="bi bi-search me-2"></i>Analyze DNS
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Analysis Options -->
+                            <div class="row">
+                                <div class="col-12">
+                                    <h6 class="fw-bold mb-3">
+                                        <i class="bi bi-gear-fill me-1"></i>Analysis Options
+                                    </h6>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="lookupRecords" checked>
+                                        <label class="form-check-label" for="lookupRecords">
+                                            DNS Records Lookup (A, AAAA, MX, NS, TXT, etc.)
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="analyzeNameservers" checked>
+                                        <label class="form-check-label" for="analyzeNameservers">
+                                            Nameserver Analysis
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="enumerateSubdomains" checked>
+                                        <label class="form-check-label" for="enumerateSubdomains">
+                                            Subdomain Enumeration
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="securityAnalysis" checked>
+                                        <label class="form-check-label" for="securityAnalysis">
+                                            DNS Security Analysis (DNSSEC, SPF, DMARC)
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="checkPropagation" checked>
+                                        <label class="form-check-label" for="checkPropagation">
+                                            DNS Propagation Check
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="attemptZoneTransfer">
+                                        <label class="form-check-label" for="attemptZoneTransfer">
+                                            Attempt Zone Transfer (AXFR)
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <label for="maxSubdomains" class="form-label">Max Subdomains to Test</label>
+                                    <select class="form-select" id="maxSubdomains">
+                                        <option value="10">10 Subdomains</option>
+                                        <option value="20" selected>20 Subdomains</option>
+                                        <option value="30">30 Subdomains</option>
+                                        <option value="50">50 Subdomains</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check mt-4">
+                                        <input class="form-check-input" type="checkbox" id="reverseDns" checked>
+                                        <label class="form-check-label" for="reverseDns">
+                                            Reverse DNS Lookup
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+
+                        <!-- Progress Bar -->
+                        <div id="progressContainer" class="mt-4" style="display: none;">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold">Performing DNS Analysis...</span>
+                                <span id="progressText">0%</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar" id="progressBar" role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Results Container -->
+                        <div id="resultsContainer" class="mt-4" style="display: none;">
+                            <!-- Results Accordion -->
+                            <div class="accordion mt-4" id="resultsAccordion">
+                                <!-- DNS Records -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#dnsRecords">
+                                            <i class="bi bi-list-ul me-2"></i>DNS Records
+                                        </button>
+                                    </h2>
+                                    <div id="dnsRecords" class="accordion-collapse collapse show">
+                                        <div class="accordion-body" id="dnsRecordsContent"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Nameservers -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#nameservers">
+                                            <i class="bi bi-hdd-network me-2"></i>Nameserver Analysis
+                                        </button>
+                                    </h2>
+                                    <div id="nameservers" class="accordion-collapse collapse">
+                                        <div class="accordion-body" id="nameserversContent"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Subdomain Enumeration -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#subdomains">
+                                            <i class="bi bi-diagram-3 me-2"></i>Subdomain Enumeration
+                                        </button>
+                                    </h2>
+                                    <div id="subdomains" class="accordion-collapse collapse">
+                                        <div class="accordion-body" id="subdomainsContent"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- DNS Security -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#dnsSecurity">
+                                            <i class="bi bi-shield-check me-2"></i>DNS Security Analysis
+                                        </button>
+                                    </h2>
+                                    <div id="dnsSecurity" class="accordion-collapse collapse">
+                                        <div class="accordion-body" id="dnsSecurityContent"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Zone Transfer -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#zoneTransfer">
+                                            <i class="bi bi-arrow-down-up me-2"></i>Zone Transfer Analysis
+                                        </button>
+                                    </h2>
+                                    <div id="zoneTransfer" class="accordion-collapse collapse">
+                                        <div class="accordion-body" id="zoneTransferContent"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- DNS Propagation -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#propagation">
+                                            <i class="bi bi-globe2 me-2"></i>DNS Propagation
+                                        </button>
+                                    </h2>
+                                    <div id="propagation" class="accordion-collapse collapse">
+                                        <div class="accordion-body" id="propagationContent"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Reverse DNS -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#reverseDns">
+                                            <i class="bi bi-arrow-counterclockwise me-2"></i>Reverse DNS
+                                        </button>
+                                    </h2>
+                                    <div id="reverseDns" class="accordion-collapse collapse">
+                                        <div class="accordion-body" id="reverseDnsContent"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Raw Results -->
+                            <div class="mt-4">
+                                <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#rawResults">
+                                    <i class="bi bi-code-square me-2"></i>View Raw Results
+                                </button>
+                                <button id="downloadBtn" class="btn btn-outline-success ms-2" style="display: none;">
+                                    <i class="bi bi-download me-2"></i>Download Results
+                                </button>
+                                <div class="collapse mt-3" id="rawResults">
+                                    <pre id="rawResultsContent" class="bg-dark text-light p-3 rounded"></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentDnsId = null;
+
+        document.getElementById('dnsForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const domain = document.getElementById('domain').value;
+            const lookupRecords = document.getElementById('lookupRecords').checked;
+            const analyzeNameservers = document.getElementById('analyzeNameservers').checked;
+            const enumerateSubdomains = document.getElementById('enumerateSubdomains').checked;
+            const securityAnalysis = document.getElementById('securityAnalysis').checked;
+            const checkPropagation = document.getElementById('checkPropagation').checked;
+            const attemptZoneTransfer = document.getElementById('attemptZoneTransfer').checked;
+            const reverseDns = document.getElementById('reverseDns').checked;
+            const maxSubdomains = parseInt(document.getElementById('maxSubdomains').value);
+            
+            // Show progress
+            document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('resultsContainer').style.display = 'none';
+            
+            // Simulate progress
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 85) progress = 85;
+                document.getElementById('progressBar').style.width = progress + '%';
+                document.getElementById('progressText').textContent = Math.round(progress) + '%';
+            }, 800);
+            
+            try {
+                const response = await fetch('/dns', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        domain: domain,
+                        options: {
+                            lookup_records: lookupRecords,
+                            analyze_nameservers: analyzeNameservers,
+                            enumerate_subdomains: enumerateSubdomains,
+                            security_analysis: securityAnalysis,
+                            check_propagation: checkPropagation,
+                            attempt_zone_transfer: attemptZoneTransfer,
+                            reverse_dns: reverseDns,
+                            max_subdomains: maxSubdomains
+                        }
+                    })
+                });
+                
+                const result = await response.json();
+                
+                // Complete progress
+                clearInterval(progressInterval);
+                document.getElementById('progressBar').style.width = '100%';
+                document.getElementById('progressText').textContent = '100%';
+                
+                setTimeout(() => {
+                    document.getElementById('progressContainer').style.display = 'none';
+                    displayResults(result);
+                }, 1000);
+                
+            } catch (error) {
+                clearInterval(progressInterval);
+                document.getElementById('progressContainer').style.display = 'none';
+                alert('Error: ' + error.message);
+            }
+        });
+
+        function displayResults(result) {
+            currentDnsId = result.dns_id;
+            
+            if (result.error) {
+                document.getElementById('resultsContainer').innerHTML = `
+                    <div class="alert alert-danger">
+                        <h5><i class="bi bi-exclamation-triangle-fill me-2"></i>DNS Analysis Error</h5>
+                        <p class="mb-0">${result.error}</p>
+                    </div>
+                `;
+            } else {
+                // DNS Records
+                displayDnsRecords(result.dns_records);
+                
+                // Nameservers
+                displayNameservers(result.nameservers);
+                
+                // Subdomain Enumeration
+                displaySubdomains(result.subdomain_enumeration);
+                
+                // DNS Security
+                displayDnsSecurity(result.dns_security);
+                
+                // Zone Transfer
+                displayZoneTransfer(result.zone_transfer);
+                
+                // DNS Propagation
+                displayDnsPropagation(result.dns_propagation);
+                
+                // Reverse DNS
+                displayReverseDns(result.reverse_dns);
+                
+                // Raw results
+                document.getElementById('rawResultsContent').textContent = JSON.stringify(result, null, 2);
+                
+                // Show download button
+                document.getElementById('downloadBtn').style.display = 'inline-block';
+                document.getElementById('downloadBtn').onclick = () => downloadResults(result.dns_id);
+            }
+            
+            document.getElementById('resultsContainer').style.display = 'block';
+        }
+
+        function displayDnsRecords(records) {
+            let html = '';
+            if (Object.keys(records).length === 0) {
+                html = '<p class="text-muted">No DNS records found.</p>';
+            } else {
+                Object.entries(records).forEach(([recordType, recordData]) => {
+                    html += `<h6 class="mt-3 mb-2">${recordType} Records</h6>`;
+                    
+                    if (recordData.error) {
+                        html += `<div class="record-item"><span class="text-muted">${recordData.error}</span></div>`;
+                    } else if (Array.isArray(recordData) && recordData.length > 0) {
+                        recordData.forEach(record => {
+                            html += `
+                                <div class="record-item record-type-${recordType}">
+                                    <strong>${record.value}</strong>
+                                    ${record.ttl ? `<span class="badge bg-secondary ms-2">TTL: ${record.ttl}</span>` : ''}
+                                    ${record.priority !== undefined ? `<span class="badge bg-info ms-2">Priority: ${record.priority}</span>` : ''}
+                                    ${record.exchange ? `<br><small class="text-muted">Exchange: ${record.exchange}</small>` : ''}
+                                    ${record.mname ? `<br><small class="text-muted">Master: ${record.mname}, Contact: ${record.rname}</small>` : ''}
+                                </div>
+                            `;
+                        });
+                    } else {
+                        html += `<div class="record-item"><span class="text-muted">No ${recordType} records found</span></div>`;
+                    }
+                });
+            }
+            document.getElementById('dnsRecordsContent').innerHTML = html;
+        }
+
+        function displayNameservers(nameservers) {
+            let html = '';
+            if (nameservers.error) {
+                html = `<div class="alert alert-warning">${nameservers.error}</div>`;
+            } else if (nameservers.length === 0) {
+                html = '<p class="text-muted">No nameservers found.</p>';
+            } else {
+                nameservers.forEach(ns => {
+                    html += `
+                        <div class="dns-server-card">
+                            <h6>${ns.nameserver}</h6>
+                            ${ns.ip_addresses.length > 0 ? 
+                                `<p><strong>IP Addresses:</strong> ${ns.ip_addresses.join(', ')}</p>` : ''
+                            }
+                            ${ns.response_time ? 
+                                `<p><strong>Response Time:</strong> ${ns.response_time}ms</p>` : ''
+                            }
+                            ${ns.error ? `<p class="text-danger">Error: ${ns.error}</p>` : ''}
+                        </div>
+                    `;
+                });
+            }
+            document.getElementById('nameserversContent').innerHTML = html;
+        }
+
+        function displaySubdomains(subdomains) {
+            let html = '';
+            if (subdomains.length === 0) {
+                html = '<p class="text-muted">No subdomains found.</p>';
+            } else {
+                html += `<p class="mb-3"><strong>${subdomains.length}</strong> subdomains discovered:</p>`;
+                subdomains.forEach(sub => {
+                    html += `
+                        <div class="record-item subdomain-found">
+                            <strong>${sub.subdomain}</strong>
+                            <div class="mt-1">
+                                ${sub.ip_addresses.map(ip => 
+                                    `<span class="badge bg-primary me-1">${ip}</span>`
+                                ).join('')}
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            document.getElementById('subdomainsContent').innerHTML = html;
+        }
+
+        function displayDnsSecurity(security) {
+            let html = '';
+            
+            // DNSSEC
+            html += '<h6>DNSSEC Status</h6>';
+            if (security.dnssec.enabled) {
+                html += `<div class="record-item"><span class="security-good">✓ DNSSEC Enabled</span>`;
+                if (security.dnssec.details.dnskey_count) {
+                    html += `<br><small>DNSKEY Records: ${security.dnssec.details.dnskey_count}</small>`;
+                }
+                html += '</div>';
+            } else {
+                html += '<div class="record-item"><span class="security-bad">✗ DNSSEC Not Enabled</span></div>';
+            }
+            
+            // SPF Record
+            html += '<h6 class="mt-3">SPF Record</h6>';
+            if (security.spf_record.found) {
+                html += `
+                    <div class="record-item">
+                        <span class="security-good">✓ SPF Record Found</span>
+                        <br><code>${security.spf_record.record}</code>
+                        ${security.spf_record.mechanisms && security.spf_record.mechanisms.length > 0 ? 
+                            `<br><small>Mechanisms: ${security.spf_record.mechanisms.join(', ')}</small>` : ''
+                        }
+                    </div>
+                `;
+            } else {
+                html += '<div class="record-item"><span class="security-bad">✗ No SPF Record Found</span></div>';
+            }
+            
+            // DMARC Record
+            html += '<h6 class="mt-3">DMARC Record</h6>';
+            if (security.dmarc_record.found) {
+                html += `
+                    <div class="record-item">
+                        <span class="security-good">✓ DMARC Record Found</span>
+                        <br><code>${security.dmarc_record.record}</code>
+                    </div>
+                `;
+            } else {
+                html += '<div class="record-item"><span class="security-bad">✗ No DMARC Record Found</span></div>';
+            }
+            
+            // CAA Records
+            if (security.caa_records.length > 0) {
+                html += '<h6 class="mt-3">CAA Records</h6>';
+                security.caa_records.forEach(caa => {
+                    html += `
+                        <div class="record-item">
+                            <strong>${caa.tag}:</strong> ${caa.value}
+                            <span class="badge bg-info ms-2">Flags: ${caa.flags}</span>
+                        </div>
+                    `;
+                });
+            }
+            
+            document.getElementById('dnsSecurityContent').innerHTML = html;
+        }
+
+        function displayZoneTransfer(zoneTransfer) {
+            let html = '';
+            
+            if (zoneTransfer.attempted && zoneTransfer.attempted.length > 0) {
+                html += `<p>Zone transfer attempted on ${zoneTransfer.attempted.length} nameserver(s):</p>`;
+                
+                if (zoneTransfer.successful.length > 0) {
+                    html += '<div class="alert alert-warning"><strong>⚠️ Zone Transfer Successful!</strong> This is a serious security vulnerability.</div>';
+                    zoneTransfer.successful.forEach(success => {
+                        html += `
+                            <div class="zone-transfer-success">
+                                <h6>Successful Zone Transfer: ${success.nameserver}</h6>
+                                <p><strong>IP:</strong> ${success.ip}</p>
+                                <p><strong>Records Retrieved:</strong> ${success.records_count}</p>
+                                ${success.records && success.records.length > 0 ? `
+                                    <p><strong>Sample Records:</strong></p>
+                                    <ul>
+                                        ${success.records.slice(0, 10).map(record => 
+                                            `<li>${record.name} ${record.type} ${record.value}</li>`
+                                        ).join('')}
+                                    </ul>
+                                    ${success.records.length > 10 ? '<p><em>... and more</em></p>' : ''}
+                                ` : ''}
+                            </div>
+                        `;
+                    });
+                } else {
+                    html += '<div class="alert alert-success">✓ Zone transfer properly restricted on all nameservers.</div>';
+                }
+                
+                if (zoneTransfer.failed.length > 0) {
+                    html += '<h6 class="mt-3">Failed Attempts:</h6>';
+                    zoneTransfer.failed.forEach(failed => {
+                        html += `<div class="record-item">${failed.nameserver}: ${failed.error}</div>`;
+                    });
+                }
+            } else {
+                html = '<p class="text-muted">Zone transfer analysis not performed.</p>';
+            }
+            
+            document.getElementById('zoneTransferContent').innerHTML = html;
+        }
+
+        function displayDnsPropagation(propagation) {
+            let html = '';
+            if (Object.keys(propagation).length === 0) {
+                html = '<p class="text-muted">DNS propagation check not performed.</p>';
+            } else {
+                Object.entries(propagation).forEach(([server, result]) => {
+                    const cardClass = result.status === 'success' ? 'propagation-success' : 'propagation-failed';
+                    html += `
+                        <div class="record-item ${cardClass}">
+                            <h6>${result.server_name}</h6>
+                            <p><strong>Server:</strong> ${server}</p>
+                            ${result.status === 'success' ? `
+                                <p><strong>Response Time:</strong> ${result.response_time}ms</p>
+                                <p><strong>IP Addresses:</strong> ${result.ip_addresses.join(', ')}</p>
+                            ` : `
+                                <p class="text-danger"><strong>Error:</strong> ${result.error}</p>
+                            `}
+                        </div>
+                    `;
+                });
+            }
+            document.getElementById('propagationContent').innerHTML = html;
+        }
+
+        function displayReverseDns(reverseDns) {
+            let html = '';
+            if (reverseDns.error) {
+                html = `<div class="alert alert-warning">${reverseDns.error}</div>`;
+            } else if (Object.keys(reverseDns).length === 0) {
+                html = '<p class="text-muted">Reverse DNS lookup not performed.</p>';
+            } else {
+                Object.entries(reverseDns).forEach(([ip, result]) => {
+                    html += `
+                        <div class="record-item">
+                            <h6>${ip}</h6>
+                            ${result.reverse_name ? `
+                                <p><strong>Reverse Name:</strong> ${result.reverse_name}</p>
+                                <p><strong>Matches Original:</strong> 
+                                    ${result.matches_original ? 
+                                        '<span class="security-good">✓ Yes</span>' : 
+                                        '<span class="security-warning">⚠ No</span>'
+                                    }
+                                </p>
+                            ` : `
+                                <p class="text-muted">Error: ${result.error}</p>
+                            `}
+                        </div>
+                    `;
+                });
+            }
+            document.getElementById('reverseDnsContent').innerHTML = html;
+        }
+
+        function downloadResults(dnsId) {
+            window.location.href = `/dns/${dnsId}/download`;
+        }
+    </script>
+</body>
+</html>
