@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nmap Scanner - ShadowScan</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .scan-card {
+            transition: all 0.3s ease;
+        }
+        .scan-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .status-badge {
+            font-size: 0.8em;
+        }
+        .option-group {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background-color: #f8f9fa;
+        }
+        .loading-spinner {
+            display: none;
+        }
+        .results-container {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .port-info {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .host-card {
+            border-left: 4px solid #007bff;
+        }
+        .port-open {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .port-closed {
+            color: #dc3545;
+        }
+        .port-filtered {
+            color: #ffc107;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a href="/" class="navbar-brand">
+                <i class="fas fa-arrow-left me-2"></i>
+                <i class="fas fa-shield-alt me-2"></i>
+                ShadowScan
+            </a>
+            <span class="navbar-text">
+                <i class="fas fa-network-wired me-2"></i>
+                Nmap Scanner
+            </span>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Scan Configuration Panel -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-cog me-2"></i>Scan Configuration</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="scanForm">
+                            <!-- Target Configuration -->
+                            <div class="mb-3">
+                                <label for="target" class="form-label">Target <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="target" placeholder="e.g., 192.168.1.1, scanme.nmap.org, 10.0.0.0/24" required>
+                                <div class="form-text">IP address, hostname, or CIDR notation</div>
+                            </div>
+
+                            <!-- Scan Type -->
+                            <div class="mb-3">
+                                <label for="scanType" class="form-label">Scan Type</label>
+                                <select class="form-select" id="scanType">
+                                    <option value="tcp_syn" selected>TCP SYN Scan (-sS)</option>
+                                    <option value="tcp_connect">TCP Connect Scan (-sT)</option>
+                                    <option value="udp">UDP Scan (-sU)</option>
+                                    <option value="tcp_ack">TCP ACK Scan (-sA)</option>
+                                    <option value="tcp_window">TCP Window Scan (-sW)</option>
+                                    <option value="tcp_maimon">TCP Maimon Scan (-sM)</option>
+                                    <option value="tcp_null">TCP Null Scan (-sN)</option>
+                                    <option value="tcp_fin">TCP FIN Scan (-sF)</option>
+                                    <option value="tcp_xmas">TCP XMAS Scan (-sX)</option>
+                                    <option value="ping">Ping Scan (-sn)</option>
+                                    <option value="list">List Scan (-sL)</option>
+                                    <option value="version">Version Detection (-sV)</option>
+                                    <option value="os_detection">OS Detection (-O)</option>
+                                    <option value="aggressive">Aggressive Scan (-A)</option>
+                                </select>
+                            </div>
+
+                            <!-- Port Configuration -->
+                            <div class="mb-3">
+                                <label for="ports" class="form-label">Ports</label>
+                                <input type="text" class="form-control" id="ports" placeholder="e.g., 22,80,443 or 1-1000 or - (all ports)">
+                                <div class="form-text">Leave empty for default ports, use "-" for all ports</div>
+                            </div>
+
+                            <!-- Advanced Options -->
+                            <div class="option-group">
+                                <h6><i class="fas fa-sliders-h me-2"></i>Timing & Performance</h6>
+                                <div class="mb-2">
+                                    <label for="timing" class="form-label">Timing Template</label>
+                                    <select class="form-select" id="timing">
+                                        <option value="">Default</option>
+                                        <option value="0">T0 (Paranoid)</option>
+                                        <option value="1">T1 (Sneaky)</option>
+                                        <option value="2">T2 (Polite)</option>
+                                        <option value="3">T3 (Normal)</option>
+                                        <option value="4">T4 (Aggressive)</option>
+                                        <option value="5">T5 (Insane)</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2">
+                                    <label for="hostTimeout" class="form-label">Host Timeout (ms)</label>
+                                    <input type="number" class="form-control" id="hostTimeout" placeholder="e.g., 30000">
+                                </div>
+                                <div class="mb-2">
+                                    <label for="scanDelay" class="form-label">Scan Delay (ms)</label>
+                                    <input type="number" class="form-control" id="scanDelay" placeholder="e.g., 1000">
+                                </div>
+                                <div class="mb-2">
+                                    <label for="maxRetries" class="form-label">Max Retries</label>
+                                    <input type="number" class="form-control" id="maxRetries" placeholder="e.g., 3">
+                                </div>
+                            </div>
+
+                            <!-- Script Options -->
+                            <div class="option-group">
+                                <h6><i class="fas fa-code me-2"></i>Script Options</h6>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="scriptScan">
+                                    <label class="form-check-label" for="scriptScan">
+                                        Enable NSE Scripts
+                                    </label>
+                                </div>
+                                <div class="mb-2 mt-2">
+                                    <label for="scriptName" class="form-label">Script Name</label>
+                                    <input type="text" class="form-control" id="scriptName" placeholder="e.g., vuln, discovery, safe">
+                                    <div class="form-text">Leave empty for default scripts</div>
+                                </div>
+                            </div>
+
+                            <!-- Evasion Options -->
+                            <div class="option-group">
+                                <h6><i class="fas fa-user-secret me-2"></i>Evasion Options</h6>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="fragment">
+                                    <label class="form-check-label" for="fragment">
+                                        Fragment Packets (-f)
+                                    </label>
+                                </div>
+                                <div class="mb-2 mt-2">
+                                    <label for="decoy" class="form-label">Decoy Addresses</label>
+                                    <input type="text" class="form-control" id="decoy" placeholder="e.g., 192.168.1.100,192.168.1.101">
+                                </div>
+                                <div class="mb-2">
+                                    <label for="spoofSource" class="form-label">Spoof Source IP</label>
+                                    <input type="text" class="form-control" id="spoofSource" placeholder="e.g., 192.168.1.50">
+                                </div>
+                                <div class="mb-2">
+                                    <label for="interface" class="form-label">Network Interface</label>
+                                    <input type="text" class="form-control" id="interface" placeholder="e.g., eth0">
+                                </div>
+                            </div>
+
+                            <!-- Other Options -->
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="verbose">
+                                <label class="form-check-label" for="verbose">
+                                    Verbose Output (-v)
+                                </label>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary w-100" id="scanBtn">
+                                <i class="fas fa-play me-2"></i>Start Scan
+                            </button>
+                            
+                            <button type="button" class="btn btn-danger w-100" id="stopBtn" style="display: none;">
+                                <i class="fas fa-stop me-2"></i>Stop Scan
+                            </button>
+                            
+                            <div class="loading-spinner text-center mt-3" id="loadingSpinner">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Scanning...</span>
+                                </div>
+                                <div class="mt-2" id="scanStatusText">Initializing scan...</div>
+                                <div class="progress mt-2" style="height: 20px;">
+                                    <div class="progress-bar" id="scanProgressBar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                                </div>
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <span id="currentHost"></span>
+                                        <span id="hostProgress"></span>
+                                    </small>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Recent Scans -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-history me-2"></i>Recent Scans</h6>
+                    </div>
+                    <div class="card-body" id="recentScans">
+                        <p class="text-muted">No scans yet</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Panel -->
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Scan Results</h5>
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary" id="refreshBtn" style="display: none;">
+                                <i class="fas fa-refresh me-1"></i>Refresh
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary" id="downloadBtn" style="display: none;">
+                                <i class="fas fa-download me-1"></i>Download
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="resultsContainer">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-search fa-3x mb-3"></i>
+                                <h5>No scan results yet</h5>
+                                <p>Configure and start a scan to see results here</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentScanId = null;
+        let pollingInterval = null;
+
+        // Form submission
+        document.getElementById('scanForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            startScan();
+        });
+
+        // Stop button
+        document.getElementById('stopBtn').addEventListener('click', function() {
+            if (currentScanId) {
+                stopScan();
+            }
+        });
+
+        function startScan() {
+            const formData = {
+                target: document.getElementById('target').value,
+                scan_type: document.getElementById('scanType').value,
+                ports: document.getElementById('ports').value,
+                options: {
+                    timing: document.getElementById('timing').value,
+                    verbose: document.getElementById('verbose').checked,
+                    script_scan: document.getElementById('scriptScan').checked,
+                    script_name: document.getElementById('scriptName').value,
+                    fragment: document.getElementById('fragment').checked,
+                    decoy: document.getElementById('decoy').value,
+                    spoof_source: document.getElementById('spoofSource').value,
+                    interface: document.getElementById('interface').value,
+                    max_retries: document.getElementById('maxRetries').value,
+                    host_timeout: document.getElementById('hostTimeout').value,
+                    scan_delay: document.getElementById('scanDelay').value
+                }
+            };
+
+            // Show loading state
+            document.getElementById('scanBtn').style.display = 'none';
+            document.getElementById('stopBtn').style.display = 'block';
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('refreshBtn').style.display = 'none';
+            document.getElementById('downloadBtn').style.display = 'none';
+            
+            // Reset progress
+            updateProgress(0, 'Initializing scan...', '', '');
+
+            fetch('/scan', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    resetForm();
+                } else {
+                    currentScanId = data.scan_id;
+                    pollScanStatus();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error starting scan');
+                resetForm();
+            });
+        }
+
+        function stopScan() {
+            if (!currentScanId) return;
+
+            fetch(`/scan/${currentScanId}/cancel`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error stopping scan: ' + data.error);
+                } else {
+                    clearInterval(pollingInterval);
+                    updateProgress(null, 'Scan cancelled by user', '', '');
+                    resetForm();
+                }
+            })
+            .catch(error => {
+                console.error('Error stopping scan:', error);
+                alert('Error stopping scan');
+            });
+        }
+
+        function updateProgress(progress, statusText, currentHost, hostProgress) {
+            if (progress !== null) {
+                const progressBar = document.getElementById('scanProgressBar');
+                progressBar.style.width = progress + '%';
+                progressBar.setAttribute('aria-valuenow', progress);
+                progressBar.textContent = progress + '%';
+            }
+            
+            document.getElementById('scanStatusText').textContent = statusText;
+            document.getElementById('currentHost').textContent = currentHost ? `Current: ${currentHost}` : '';
+            document.getElementById('hostProgress').textContent = hostProgress;
+        }
+
+        function pollScanStatus() {
+            if (!currentScanId) return;
+
+            pollingInterval = setInterval(() => {
+                fetch(`/scan/${currentScanId}/status`)
+                .then(response => response.json())
+                .then(data => {
+                    // Update progress display
+                    if (data.status === 'running') {
+                        const progress = data.progress || 0;
+                        const currentHost = data.current_host || '';
+                        const hostProgress = data.total_hosts > 0 ? 
+                            `(${data.scanned_hosts || 0}/${data.total_hosts})` : '';
+                        
+                        updateProgress(progress, 'Scanning in progress...', currentHost, hostProgress);
+                    }
+                    
+                    if (data.status === 'completed') {
+                        clearInterval(pollingInterval);
+                        updateProgress(100, 'Scan completed successfully!', '', '');
+                        setTimeout(() => {
+                            loadScanResult();
+                            resetForm();
+                        }, 1000);
+                    } else if (data.status === 'error') {
+                        clearInterval(pollingInterval);
+                        updateProgress(null, 'Scan failed with error', '', '');
+                        alert('Scan error: ' + data.error);
+                        resetForm();
+                    } else if (data.status === 'cancelled') {
+                        clearInterval(pollingInterval);
+                        updateProgress(null, 'Scan was cancelled', '', '');
+                        resetForm();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error polling status:', error);
+                });
+            }, 1000); // Update every second for better responsiveness
+        }
+
+        function loadScanResult() {
+            if (!currentScanId) return;
+
+            fetch(`/scan/${currentScanId}/result`)
+            .then(response => response.json())
+            .then(data => {
+                displayResults(data);
+                document.getElementById('refreshBtn').style.display = 'inline-block';
+                document.getElementById('downloadBtn').style.display = 'inline-block';
+                loadRecentScans();
+            })
+            .catch(error => {
+                console.error('Error loading results:', error);
+            });
+        }
+
+        function displayResults(data) {
+            const container = document.getElementById('resultsContainer');
+            const result = data.result;
+            
+            let html = '';
+            
+            // Summary
+            html += `
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <h6>Scan Summary</h6>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="card text-center">
+                                    <div class="card-body">
+                                        <h5 class="card-title text-primary">${result.summary.total_hosts}</h5>
+                                        <p class="card-text">Total Hosts</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card text-center">
+                                    <div class="card-body">
+                                        <h5 class="card-title text-success">${result.summary.hosts_up}</h5>
+                                        <p class="card-text">Hosts Up</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card text-center">
+                                    <div class="card-body">
+                                        <h5 class="card-title text-info">${result.summary.total_ports}</h5>
+                                        <p class="card-text">Total Ports</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card text-center">
+                                    <div class="card-body">
+                                        <h5 class="card-title text-success">${result.summary.open_ports}</h5>
+                                        <p class="card-text">Open Ports</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Host details
+            html += '<h6>Host Details</h6>';
+            
+            for (const [host, hostInfo] of Object.entries(result.hosts)) {
+                html += `
+                    <div class="card host-card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-server me-2"></i>
+                                ${host}
+                                <span class="badge bg-${hostInfo.status.state === 'up' ? 'success' : 'danger'} ms-2">
+                                    ${hostInfo.status.state}
+                                </span>
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                `;
+                
+                // Hostnames
+                if (hostInfo.hostname && hostInfo.hostname.length > 0) {
+                    html += `<p><strong>Hostnames:</strong> ${hostInfo.hostname.map(h => h.name).join(', ')}</p>`;
+                }
+                
+                // Addresses
+                if (Object.keys(hostInfo.addresses).length > 0) {
+                    html += `<p><strong>Addresses:</strong> `;
+                    for (const [type, addr] of Object.entries(hostInfo.addresses)) {
+                        html += `${type.toUpperCase()}: ${addr} `;
+                    }
+                    html += `</p>`;
+                }
+                
+                // Ports
+                if (Object.keys(hostInfo.ports).length > 0) {
+                    html += `<h6>Ports</h6>`;
+                    html += `<div class="port-info">`;
+                    
+                    for (const [port, portInfo] of Object.entries(hostInfo.ports)) {
+                        const stateClass = portInfo.state === 'open' ? 'port-open' : 
+                                         portInfo.state === 'closed' ? 'port-closed' : 'port-filtered';
+                        
+                        html += `
+                            <div class="row mb-1">
+                                <div class="col-md-2">
+                                    <span class="${stateClass}">${port}</span>
+                                </div>
+                                <div class="col-md-2">
+                                    <span class="${stateClass}">${portInfo.state}</span>
+                                </div>
+                                <div class="col-md-3">
+                                    ${portInfo.name || 'unknown'}
+                                </div>
+                                <div class="col-md-3">
+                                    ${portInfo.product || ''} ${portInfo.version || ''}
+                                </div>
+                                <div class="col-md-2">
+                                    ${portInfo.extrainfo || ''}
+                                </div>
+                            </div>
+                        `;
+                    }
+                    html += `</div>`;
+                }
+                
+                // OS Detection
+                if (hostInfo.os && hostInfo.os.length > 0) {
+                    html += `<h6>OS Detection</h6>`;
+                    hostInfo.os.forEach(os => {
+                        html += `<p><strong>${os.name}</strong> (${os.accuracy}% accuracy)</p>`;
+                    });
+                }
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = html;
+        }
+
+        function loadRecentScans() {
+            fetch('/scans')
+            .then(response => response.json())
+            .then(scans => {
+                const container = document.getElementById('recentScans');
+                
+                if (scans.length === 0) {
+                    container.innerHTML = '<p class="text-muted">No scans yet</p>';
+                    return;
+                }
+                
+                let html = '';
+                scans.slice(0, 5).forEach(scan => {
+                    const statusBadge = scan.status === 'completed' ? 'bg-success' : 
+                                       scan.status === 'error' ? 'bg-danger' : 'bg-warning';
+                    
+                    html += `
+                        <div class="scan-card card mb-2" style="cursor: pointer;" onclick="loadScanById('${scan.id}')">
+                            <div class="card-body p-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <small class="fw-bold">${scan.target}</small><br>
+                                        <small class="text-muted">${scan.scan_type}</small>
+                                    </div>
+                                    <span class="badge ${statusBadge} status-badge">${scan.status}</span>
+                                </div>
+                                <small class="text-muted">${new Date(scan.timestamp).toLocaleString()}</small>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                container.innerHTML = html;
+            });
+        }
+
+        function loadScanById(scanId) {
+            currentScanId = scanId;
+            loadScanResult();
+        }
+
+        function resetForm() {
+            document.getElementById('scanBtn').style.display = 'block';
+            document.getElementById('stopBtn').style.display = 'none';
+            document.getElementById('loadingSpinner').style.display = 'none';
+        }
+
+        // Download button
+        document.getElementById('downloadBtn').addEventListener('click', function() {
+            if (currentScanId) {
+                window.open(`/scan/${currentScanId}/download`, '_blank');
+            }
+        });
+
+        // Refresh button
+        document.getElementById('refreshBtn').addEventListener('click', function() {
+            if (currentScanId) {
+                loadScanResult();
+            }
+        });
+
+        // Load recent scans on page load
+        loadRecentScans();
+    </script>
+</body>
+</html>

@@ -1,10 +1,15 @@
-# Nmap Web Scanner
+# ShadowScan - Security Scanning Suite
 
-A web-based interface for running Nmap scans with a clean, user-friendly UI. This application allows you to configure and execute various types of Nmap scans through a modern web interface.
+A comprehensive web-based security scanning platform featuring multiple reconnaissance and analysis tools. ShadowScan provides an intuitive interface for network discovery, vulnerability assessment, and security analysis.
 
-## Features
+## 🚀 Features
 
-### Scan Types
+### 🔍 Available Tools
+
+#### Nmap Scanner
+Advanced network scanning and service discovery with a clean web interface.
+
+**Scan Types:**
 - **TCP SYN Scan** (-sS) - Default, fast and stealthy
 - **TCP Connect Scan** (-sT) - Complete TCP connection
 - **UDP Scan** (-sU) - Scan UDP ports
@@ -20,7 +25,7 @@ A web-based interface for running Nmap scans with a clean, user-friendly UI. Thi
 - **OS Detection** (-O) - Operating system detection
 - **Aggressive Scan** (-A) - OS detection, version detection, script scanning
 
-### Advanced Options
+**Advanced Options:**
 - **Timing Templates** (T0-T5) - Control scan speed and stealth
 - **Port Specification** - Custom port ranges or specific ports
 - **NSE Scripts** - Enable Nmap Scripting Engine with custom scripts
@@ -28,24 +33,53 @@ A web-based interface for running Nmap scans with a clean, user-friendly UI. Thi
 - **Performance Tuning** - Host timeout, scan delay, max retries
 - **Network Interface** - Specify network interface for scanning
 
-### Web Interface Features
-- Real-time scan progress monitoring
-- Detailed results with host information, open ports, and services
-- Scan history and management
-- Export results as JSON
-- Responsive design for desktop and mobile
-- Clean, modern Bootstrap-based UI
+#### IP/Domain Lookup Tool
+Comprehensive IP geolocation and DNS resolution services.
 
-## Quick Start
+**Features:**
+- **IP Resolution** - Domain to IP address resolution (IPv4 and IPv6)
+- **Reverse DNS** - IP to domain name lookup
+- **Geolocation** - Location information including country, region, city, ISP
+- **WHOIS Information** - Domain/IP registration details
+- **History Tracking** - Local storage of recent lookups
+
+#### Coming Soon
+- **Vulnerability Scanner** - CVE detection and risk assessment
+- **Web Crawler** - Directory discovery and content mapping
+- **SSL/TLS Analyzer** - Certificate and cipher analysis
+- **DNS Toolkit** - Advanced DNS enumeration and zone transfers
+
+### 🎨 Web Interface Features
+- **Modern Design** - Clean, responsive Bootstrap-based UI
+- **Real-time Progress** - Live scan progress monitoring
+- **Tool Dashboard** - Easy navigation between different tools
+- **Detailed Results** - Comprehensive result visualization
+- **Export Functionality** - Download results as JSON
+- **Scan History** - Track and revisit previous scans
+- **Mobile Friendly** - Responsive design for all devices
+
+## 🚀 Quick Start
 
 ### Using Docker Compose (Recommended)
 
-1. Clone or download this repository
-2. Navigate to the project directory
-3. Run the application:
+1. **Clone the repository:**
+```bash
+git clone <repository-url>
+cd ShadowScan
+```
 
+2. **Run with Docker Compose:**
 ```bash
 docker-compose up -d
+```
+
+3. **Or use the helper scripts:**
+```bash
+# Linux/macOS
+./docker-run.sh
+
+# Windows PowerShell
+.\docker-run.ps1
 ```
 
 4. Open your browser and go to `http://localhost:5000`
