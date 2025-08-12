@@ -20,7 +20,10 @@ import requests
 import ipaddress
 import ssl
 import concurrent.futures
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin, quote
+from urllib.robotparser import RobotFileParser
+from bs4 import BeautifulSoup
+from collections import deque, defaultdict
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'
@@ -36,6 +39,9 @@ lookup_results = {}
 
 # Store SSL scan results
 ssl_scan_results = {}
+
+# Store web crawler results
+crawler_results = {}
 
 class NmapScanner:
     def __init__(self):
@@ -698,9 +704,450 @@ class SSLTLSScanner:
         else:
             return 'F'
 
+class WebCrawler:
+    def __init__(self):
+        self.session = requests.Session()
+        self.session.headers.update({
+            'User-Agent': 'ShadowScan WebCrawler/1.0 (Security Scanner)'
+        })
+        self.common_directories = [
+            'admin', 'administrator', 'wp-admin', 'login', 'dashboard', 'control',
+            'manager', 'api', 'config', 'backup', 'uploads', 'files', 'download',
+            'images', 'css', 'js', 'scripts', 'assets', 'static', 'public',
+            'private', 'secure', 'hidden', 'test', 'dev', 'staging', 'beta',
+            'old', 'new', 'tmp', 'temp', 'cache', 'logs', 'log', 'data',
+            'db', 'database', 'sql', 'phpmyadmin', 'mysql', 'postgres',
+            'ftp', 'mail', 'email', 'webmail', 'www', 'web', 'site'
+        ]
+        self.common_files = [
+            'robots.txt', 'sitemap.xml', 'sitemap.txt', '.htaccess', 'web.config',
+            'crossdomain.xml', 'clientaccesspolicy.xml', 'humans.txt',
+            'readme.txt', 'readme.html', 'changelog.txt', 'license.txt',
+            'config.php', 'config.xml', 'settings.php', 'wp-config.php',
+            'database.php', 'db.php', 'connect.php', 'connection.php',
+            'install.php', 'setup.php', 'phpinfo.php', 'info.php',
+            'test.php', 'debug.php', 'admin.php', 'login.php',
+            'index.bak', 'backup.sql', 'dump.sql', 'database.sql'
+        ]
+    
+    def crawl_website(self, target_url, options):
+        """Perform comprehensive web crawling and directory discovery"""
+        start_time = time.time()
+        
+        # Validate and normalize URL
+        parsed_url = self._normalize_url(target_url)
+        if not parsed_url:
+            return {'error': 'Invalid URL format'}
+        
+        result = {
+            'timestamp': datetime.datetime.now().isoformat(),
+            'target_url': target_url,
+            'base_url': f"{parsed_url.scheme}://{parsed_url.netloc}",
+            'response_time_ms': 0,
+            'discovered_urls': [],
+            'directory_bruteforce': [],
+            'file_discovery': [],
+            'robots_txt': {},
+            'sitemap': [],
+            'forms': [],
+            'technologies': [],
+            'security_headers': {},
+            'cookies': [],
+            'status_summary': defaultdict(int),
+            'crawl_statistics': {}
+        }
+        
+        try:
+            base_url = result['base_url']
+            
+            # Check robots.txt
+            if options.get('check_robots', True):
+                result['robots_txt'] = self._check_robots_txt(base_url)
+            
+            # Check sitemap
+            if options.get('check_sitemap', True):
+                result['sitemap'] = self._check_sitemap(base_url)
+            
+            # Directory bruteforce
+            if options.get('directory_bruteforce', True):
+                max_dirs = options.get('max_directories', 20)
+                result['directory_bruteforce'] = self._directory_bruteforce(base_url, max_dirs)
+            
+            # File discovery
+            if options.get('file_discovery', True):
+                max_files = options.get('max_files', 15)
+                result['file_discovery'] = self._file_discovery(base_url, max_files)
+            
+            # Web crawling (follow links)
+            if options.get('crawl_links', True):
+                max_depth = options.get('max_depth', 2)
+                max_urls = options.get('max_urls', 50)
+                crawl_result = self._crawl_links(target_url, max_depth, max_urls)
+                result.update(crawl_result)
+            
+            # Analyze security headers for main page
+            result['security_headers'] = self._analyze_security_headers(target_url)
+            
+            # Generate statistics
+            result['crawl_statistics'] = {
+                'total_urls_found': len(result['discovered_urls']),
+                'total_directories_found': len([d for d in result['directory_bruteforce'] if d.get('status') == 200]),
+                'total_files_found': len([f for f in result['file_discovery'] if f.get('status') == 200]),
+                'forms_found': len(result['forms']),
+                'technologies_detected': len(result['technologies'])
+            }
+            
+        except Exception as e:
+            result['error'] = str(e)
+        
+        result['response_time_ms'] = int((time.time() - start_time) * 1000)
+        return result
+    
+    def _normalize_url(self, url):
+        """Normalize and validate URL"""
+        try:
+            if not url.startswith(('http://', 'https://')):
+                url = 'https://' + url
+            
+            parsed = urlparse(url)
+            if not parsed.netloc:
+                return None
+            
+            return parsed
+        except Exception:
+            return None
+    
+    def _check_robots_txt(self, base_url):
+        """Check robots.txt file"""
+        robots_info = {'exists': False, 'disallowed_paths': [], 'allowed_paths': [], 'sitemaps': []}
+        
+        try:
+            robots_url = urljoin(base_url, '/robots.txt')
+            response = self.session.get(robots_url, timeout=10)
+            
+            if response.status_code == 200:
+                robots_info['exists'] = True
+                robots_info['content'] = response.text[:1000]  # Limit content size
+                
+                # Parse robots.txt
+                rp = RobotFileParser()
+                rp.set_url(robots_url)
+                rp.read()
+                
+                # Extract disallowed paths
+                lines = response.text.split('\n')
+                for line in lines:
+                    line = line.strip()
+                    if line.lower().startswith('disallow:'):
+                        path = line.split(':', 1)[1].strip()
+                        if path and path != '/':
+                            robots_info['disallowed_paths'].append(path)
+                    elif line.lower().startswith('allow:'):
+                        path = line.split(':', 1)[1].strip()
+                        if path:
+                            robots_info['allowed_paths'].append(path)
+                    elif line.lower().startswith('sitemap:'):
+                        sitemap_url = line.split(':', 1)[1].strip()
+                        if sitemap_url:
+                            robots_info['sitemaps'].append(sitemap_url)
+        
+        except Exception as e:
+            robots_info['error'] = str(e)
+        
+        return robots_info
+    
+    def _check_sitemap(self, base_url):
+        """Check for sitemap files"""
+        sitemaps = []
+        sitemap_urls = [
+            '/sitemap.xml',
+            '/sitemap.txt',
+            '/sitemap/sitemap.xml',
+            '/sitemaps.xml'
+        ]
+        
+        for sitemap_path in sitemap_urls:
+            try:
+                sitemap_url = urljoin(base_url, sitemap_path)
+                response = self.session.get(sitemap_url, timeout=10)
+                
+                if response.status_code == 200:
+                    sitemap_info = {
+                        'url': sitemap_url,
+                        'status': response.status_code,
+                        'content_type': response.headers.get('content-type', ''),
+                        'size': len(response.content),
+                        'urls': []
+                    }
+                    
+                    # Extract URLs from XML sitemap
+                    if 'xml' in sitemap_path.lower():
+                        try:
+                            from xml.etree import ElementTree as ET
+                            root = ET.fromstring(response.content)
+                            for url_elem in root.findall('.//{http://www.sitemaps.org/schemas/sitemap/0.9}url'):
+                                loc_elem = url_elem.find('{http://www.sitemaps.org/schemas/sitemap/0.9}loc')
+                                if loc_elem is not None and loc_elem.text:
+                                    sitemap_info['urls'].append(loc_elem.text)
+                        except:
+                            pass
+                    
+                    sitemaps.append(sitemap_info)
+            
+            except Exception:
+                continue
+        
+        return sitemaps
+    
+    def _directory_bruteforce(self, base_url, max_directories):
+        """Bruteforce common directories"""
+        results = []
+        
+        def check_directory(directory):
+            try:
+                dir_url = urljoin(base_url, f'/{directory}/')
+                response = self.session.get(dir_url, timeout=5, allow_redirects=False)
+                
+                return {
+                    'directory': directory,
+                    'url': dir_url,
+                    'status': response.status_code,
+                    'size': len(response.content),
+                    'content_type': response.headers.get('content-type', ''),
+                    'server': response.headers.get('server', '')
+                }
+            except Exception as e:
+                return {
+                    'directory': directory,
+                    'url': urljoin(base_url, f'/{directory}/'),
+                    'status': 0,
+                    'error': str(e)
+                }
+        
+        # Use threading for faster directory bruteforce
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            directories_to_check = self.common_directories[:max_directories]
+            future_to_dir = {executor.submit(check_directory, directory): directory 
+                           for directory in directories_to_check}
+            
+            for future in concurrent.futures.as_completed(future_to_dir):
+                result = future.result()
+                results.append(result)
+        
+        # Sort by status code (interesting responses first)
+        results.sort(key=lambda x: (x.get('status', 999) not in [200, 301, 302, 403], x.get('status', 999)))
+        return results
+    
+    def _file_discovery(self, base_url, max_files):
+        """Discover common files"""
+        results = []
+        
+        def check_file(filename):
+            try:
+                file_url = urljoin(base_url, f'/{filename}')
+                response = self.session.get(file_url, timeout=5)
+                
+                return {
+                    'filename': filename,
+                    'url': file_url,
+                    'status': response.status_code,
+                    'size': len(response.content),
+                    'content_type': response.headers.get('content-type', ''),
+                    'last_modified': response.headers.get('last-modified', '')
+                }
+            except Exception as e:
+                return {
+                    'filename': filename,
+                    'url': urljoin(base_url, f'/{filename}'),
+                    'status': 0,
+                    'error': str(e)
+                }
+        
+        # Use threading for faster file discovery
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            files_to_check = self.common_files[:max_files]
+            future_to_file = {executor.submit(check_file, filename): filename 
+                            for filename in files_to_check}
+            
+            for future in concurrent.futures.as_completed(future_to_file):
+                result = future.result()
+                results.append(result)
+        
+        # Sort by status code (successful responses first)
+        results.sort(key=lambda x: x.get('status', 999) != 200)
+        return results
+    
+    def _crawl_links(self, start_url, max_depth, max_urls):
+        """Crawl website following links"""
+        visited = set()
+        to_visit = deque([(start_url, 0)])
+        discovered_urls = []
+        forms = []
+        technologies = set()
+        
+        while to_visit and len(discovered_urls) < max_urls:
+            url, depth = to_visit.popleft()
+            
+            if url in visited or depth > max_depth:
+                continue
+            
+            visited.add(url)
+            
+            try:
+                response = self.session.get(url, timeout=10)
+                
+                if response.status_code == 200:
+                    discovered_urls.append({
+                        'url': url,
+                        'status': response.status_code,
+                        'title': '',
+                        'depth': depth,
+                        'size': len(response.content),
+                        'content_type': response.headers.get('content-type', '')
+                    })
+                    
+                    # Parse HTML content
+                    if 'text/html' in response.headers.get('content-type', ''):
+                        soup = BeautifulSoup(response.content, 'html.parser')
+                        
+                        # Extract title
+                        title_tag = soup.find('title')
+                        if title_tag:
+                            discovered_urls[-1]['title'] = title_tag.get_text().strip()[:100]
+                        
+                        # Find forms
+                        for form in soup.find_all('form'):
+                            form_info = {
+                                'url': url,
+                                'action': form.get('action', ''),
+                                'method': form.get('method', 'GET').upper(),
+                                'inputs': []
+                            }
+                            
+                            for input_tag in form.find_all(['input', 'textarea', 'select']):
+                                input_info = {
+                                    'type': input_tag.get('type', 'text'),
+                                    'name': input_tag.get('name', ''),
+                                    'id': input_tag.get('id', '')
+                                }
+                                form_info['inputs'].append(input_info)
+                            
+                            forms.append(form_info)
+                        
+                        # Detect technologies
+                        self._detect_technologies(response, soup, technologies)
+                        
+                        # Find more links to follow
+                        if depth < max_depth:
+                            base_domain = urlparse(start_url).netloc
+                            for link in soup.find_all('a', href=True):
+                                next_url = urljoin(url, link['href'])
+                                parsed_next = urlparse(next_url)
+                                
+                                # Only follow links within the same domain
+                                if parsed_next.netloc == base_domain and next_url not in visited:
+                                    to_visit.append((next_url, depth + 1))
+            
+            except Exception:
+                continue
+        
+        return {
+            'discovered_urls': discovered_urls,
+            'forms': forms,
+            'technologies': list(technologies)
+        }
+    
+    def _detect_technologies(self, response, soup, technologies):
+        """Detect web technologies"""
+        headers = response.headers
+        
+        # Server detection
+        server = headers.get('server', '').lower()
+        if 'apache' in server:
+            technologies.add('Apache')
+        elif 'nginx' in server:
+            technologies.add('Nginx')
+        elif 'iis' in server:
+            technologies.add('IIS')
+        
+        # Framework detection
+        if 'x-powered-by' in headers:
+            powered_by = headers['x-powered-by']
+            technologies.add(f"Powered by: {powered_by}")
+        
+        # Content analysis
+        html_content = str(soup).lower()
+        
+        # Popular frameworks/CMS
+        if 'wordpress' in html_content or 'wp-content' in html_content:
+            technologies.add('WordPress')
+        if 'drupal' in html_content:
+            technologies.add('Drupal')
+        if 'joomla' in html_content:
+            technologies.add('Joomla')
+        if 'react' in html_content:
+            technologies.add('React')
+        if 'angular' in html_content:
+            technologies.add('Angular')
+        if 'vue' in html_content:
+            technologies.add('Vue.js')
+        if 'bootstrap' in html_content:
+            technologies.add('Bootstrap')
+        if 'jquery' in html_content:
+            technologies.add('jQuery')
+    
+    def _analyze_security_headers(self, url):
+        """Analyze security headers"""
+        headers_info = {}
+        
+        try:
+            response = self.session.get(url, timeout=10)
+            headers = response.headers
+            
+            security_headers = {
+                'Content-Security-Policy': 'CSP',
+                'X-Frame-Options': 'X-Frame-Options',
+                'X-XSS-Protection': 'XSS Protection',
+                'X-Content-Type-Options': 'Content Type Options',
+                'Strict-Transport-Security': 'HSTS',
+                'Referrer-Policy': 'Referrer Policy',
+                'Permissions-Policy': 'Permissions Policy'
+            }
+            
+            for header, friendly_name in security_headers.items():
+                if header in headers:
+                    headers_info[friendly_name] = {
+                        'present': True,
+                        'value': headers[header]
+                    }
+                else:
+                    headers_info[friendly_name] = {
+                        'present': False,
+                        'recommendation': f'{header} header missing'
+                    }
+            
+            # Check cookies
+            cookies = []
+            for cookie in response.cookies:
+                cookie_info = {
+                    'name': cookie.name,
+                    'secure': cookie.secure,
+                    'httponly': hasattr(cookie, 'httponly') and cookie.httponly,
+                    'samesite': getattr(cookie, 'samesite', None)
+                }
+                cookies.append(cookie_info)
+            
+            headers_info['cookies'] = cookies
+        
+        except Exception as e:
+            headers_info['error'] = str(e)
+        
+        return headers_info
+
 scanner = NmapScanner()
 lookup_tool = IPDomainLookup()
 ssl_scanner = SSLTLSScanner()
+web_crawler = WebCrawler()
 
 @app.route('/')
 def home():
@@ -770,6 +1217,52 @@ def download_ssl_result(ssl_scan_id):
     # Create filename
     result = ssl_scan_results[ssl_scan_id]
     filename = f"ssl_scan_{result['target'].replace('/', '_').replace(':', '_')}_{ssl_scan_id[:8]}.json"
+    filepath = os.path.join('scan_results', filename)
+    
+    # Ensure directory exists
+    os.makedirs('scan_results', exist_ok=True)
+    
+    # Save result to file
+    with open(filepath, 'w') as f:
+        json.dump(result, f, indent=2)
+    
+    return send_file(filepath, as_attachment=True, download_name=filename)
+
+@app.route('/crawler')
+def crawler_page():
+    return render_template('crawler.html')
+
+@app.route('/crawler', methods=['POST'])
+def perform_crawl():
+    data = request.get_json()
+    
+    target_url = data.get('target_url')
+    options = data.get('options', {})
+    
+    if not target_url:
+        return jsonify({'error': 'Target URL is required'}), 400
+    
+    # Generate crawl ID
+    crawl_id = str(uuid.uuid4())
+    
+    # Perform web crawl
+    result = web_crawler.crawl_website(target_url, options)
+    result['crawl_id'] = crawl_id
+    
+    # Store result
+    crawler_results[crawl_id] = result
+    
+    return jsonify(result)
+
+@app.route('/crawler/<crawl_id>/download')
+def download_crawler_result(crawl_id):
+    if crawl_id not in crawler_results:
+        return jsonify({'error': 'Crawl result not found'}), 404
+    
+    # Create filename
+    result = crawler_results[crawl_id]
+    target_clean = result['target_url'].replace('://', '_').replace('/', '_').replace(':', '_')
+    filename = f"crawler_{target_clean}_{crawl_id[:8]}.json"
     filepath = os.path.join('scan_results', filename)
     
     # Ensure directory exists

@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Crawler - ShadowScan</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .container {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border: none;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px 20px 0 0 !important;
+            padding: 1.5rem;
+            border: none;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 10px;
+            padding: 0.75rem 2rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .form-control, .form-select {
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            padding: 0.75rem 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.25);
+        }
+        
+        .progress {
+            border-radius: 10px;
+            height: 8px;
+            background-color: rgba(102, 126, 234, 0.1);
+        }
+        
+        .progress-bar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+        }
+        
+        .result-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border-left: 5px solid #667eea;
+        }
+        
+        .url-item {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+        }
+        
+        .status-200 { border-left: 4px solid #28a745; }
+        .status-301, .status-302 { border-left: 4px solid #ffc107; }
+        .status-403 { border-left: 4px solid #fd7e14; }
+        .status-404 { border-left: 4px solid #dc3545; }
+        .status-500 { border-left: 4px solid #6f42c1; }
+        
+        .tech-badge {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            border: none;
+        }
+        
+        .form-badge {
+            background: linear-gradient(135deg, #17a2b8, #6f42c1);
+            color: white;
+            border: none;
+        }
+        
+        .security-good {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .security-bad {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .nav-link {
+            color: white;
+            font-weight: 500;
+        }
+        
+        .nav-link:hover {
+            color: #f8f9fa;
+        }
+        
+        .accordion-button:not(.collapsed) {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+        
+        .statistics-card {
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Navigation -->
+        <nav class="navbar navbar-expand-lg mb-4" style="background: rgba(255, 255, 255, 0.1); border-radius: 15px; backdrop-filter: blur(10px);">
+            <div class="container-fluid">
+                <a class="navbar-brand text-white fw-bold" href="/">
+                    <i class="bi bi-spider me-2"></i>ShadowScan
+                </a>
+                <div class="navbar-nav ms-auto">
+                    <a class="nav-link" href="/">Home</a>
+                    <a class="nav-link" href="/nmap">Nmap Scanner</a>
+                    <a class="nav-link" href="/lookup">IP/Domain Lookup</a>
+                    <a class="nav-link" href="/ssl">SSL/TLS Scanner</a>
+                    <a class="nav-link active" href="/crawler">Web Crawler</a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="mb-0">
+                            <i class="bi bi-spider me-2"></i>
+                            Web Crawler & Directory Discovery
+                        </h3>
+                        <p class="mb-0 opacity-75">Intelligent web crawling, directory bruteforce, and security analysis</p>
+                    </div>
+                    <div class="card-body">
+                        <form id="crawlerForm">
+                            <div class="row">
+                                <div class="col-md-8 mb-3">
+                                    <label for="targetUrl" class="form-label fw-bold">
+                                        <i class="bi bi-globe me-1"></i>Target URL
+                                    </label>
+                                    <input type="text" class="form-control" id="targetUrl" name="targetUrl" 
+                                           placeholder="e.g., https://example.com" required>
+                                    <div class="form-text">Enter the website URL to crawl and analyze</div>
+                                </div>
+                                <div class="col-md-4 mb-3 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="bi bi-search me-2"></i>Start Crawling
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Crawl Options -->
+                            <div class="row">
+                                <div class="col-12">
+                                    <h6 class="fw-bold mb-3">
+                                        <i class="bi bi-gear-fill me-1"></i>Crawling Options
+                                    </h6>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="crawlLinks" checked>
+                                        <label class="form-check-label" for="crawlLinks">
+                                            Crawl Links (Follow Internal Links)
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="directoryBruteforce" checked>
+                                        <label class="form-check-label" for="directoryBruteforce">
+                                            Directory Bruteforce
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="fileDiscovery" checked>
+                                        <label class="form-check-label" for="fileDiscovery">
+                                            Common File Discovery
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="checkRobots" checked>
+                                        <label class="form-check-label" for="checkRobots">
+                                            Check robots.txt
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="checkSitemap" checked>
+                                        <label class="form-check-label" for="checkSitemap">
+                                            Check Sitemap Files
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-3">
+                                <div class="col-md-3">
+                                    <label for="maxDepth" class="form-label">Max Crawl Depth</label>
+                                    <select class="form-select" id="maxDepth">
+                                        <option value="1">1 Level</option>
+                                        <option value="2" selected>2 Levels</option>
+                                        <option value="3">3 Levels</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="maxUrls" class="form-label">Max URLs</label>
+                                    <select class="form-select" id="maxUrls">
+                                        <option value="25">25 URLs</option>
+                                        <option value="50" selected>50 URLs</option>
+                                        <option value="100">100 URLs</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="maxDirectories" class="form-label">Max Directories</label>
+                                    <select class="form-select" id="maxDirectories">
+                                        <option value="10">10 Directories</option>
+                                        <option value="20" selected>20 Directories</option>
+                                        <option value="30">30 Directories</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="maxFiles" class="form-label">Max Files</label>
+                                    <select class="form-select" id="maxFiles">
+                                        <option value="10">10 Files</option>
+                                        <option value="15" selected>15 Files</option>
+                                        <option value="25">25 Files</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </form>
+
+                        <!-- Progress Bar -->
+                        <div id="progressContainer" class="mt-4" style="display: none;">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold">Crawling Website...</span>
+                                <span id="progressText">0%</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar" id="progressBar" role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Results Container -->
+                        <div id="resultsContainer" class="mt-4" style="display: none;">
+                            <!-- Statistics -->
+                            <div id="crawlStatistics"></div>
+                            
+                            <!-- Results Accordion -->
+                            <div class="accordion mt-4" id="resultsAccordion">
+                                <!-- Discovered URLs -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#discoveredUrls">
+                                            <i class="bi bi-link-45deg me-2"></i>Discovered URLs
+                                        </button>
+                                    </h2>
+                                    <div id="discoveredUrls" class="accordion-collapse collapse show">
+                                        <div class="accordion-body" id="discoveredUrlsContent"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Directory Bruteforce -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#directoryResults">
+                                            <i class="bi bi-folder me-2"></i>Directory Discovery
+                                        </button>
+                                    </h2>
+                                    <div id="directoryResults" class="accordion-collapse collapse">
+                                        <div class="accordion-body" id="directoryResultsContent"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- File Discovery -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#fileResults">
+                                            <i class="bi bi-file-earmark me-2"></i>File Discovery
+                                        </button>
+                                    </h2>
+                                    <div id="fileResults" class="accordion-collapse collapse">
+                                        <div class="accordion-body" id="fileResultsContent"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Technologies -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#technologies">
+                                            <i class="bi bi-cpu me-2"></i>Technologies Detected
+                                        </button>
+                                    </h2>
+                                    <div id="technologies" class="accordion-collapse collapse">
+                                        <div class="accordion-body" id="technologiesContent"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Forms -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#forms">
+                                            <i class="bi bi-ui-checks me-2"></i>Forms Found
+                                        </button>
+                                    </h2>
+                                    <div id="forms" class="accordion-collapse collapse">
+                                        <div class="accordion-body" id="formsContent"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Security Headers -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#securityHeaders">
+                                            <i class="bi bi-shield-check me-2"></i>Security Analysis
+                                        </button>
+                                    </h2>
+                                    <div id="securityHeaders" class="accordion-collapse collapse">
+                                        <div class="accordion-body" id="securityHeadersContent"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Robots.txt & Sitemap -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#robotsAndSitemap">
+                                            <i class="bi bi-robot me-2"></i>Robots.txt & Sitemap
+                                        </button>
+                                    </h2>
+                                    <div id="robotsAndSitemap" class="accordion-collapse collapse">
+                                        <div class="accordion-body" id="robotsAndSitemapContent"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Raw Results -->
+                            <div class="mt-4">
+                                <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#rawResults">
+                                    <i class="bi bi-code-square me-2"></i>View Raw Results
+                                </button>
+                                <button id="downloadBtn" class="btn btn-outline-success ms-2" style="display: none;">
+                                    <i class="bi bi-download me-2"></i>Download Results
+                                </button>
+                                <div class="collapse mt-3" id="rawResults">
+                                    <pre id="rawResultsContent" class="bg-dark text-light p-3 rounded"></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentCrawlId = null;
+
+        document.getElementById('crawlerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const targetUrl = document.getElementById('targetUrl').value;
+            const crawlLinks = document.getElementById('crawlLinks').checked;
+            const directoryBruteforce = document.getElementById('directoryBruteforce').checked;
+            const fileDiscovery = document.getElementById('fileDiscovery').checked;
+            const checkRobots = document.getElementById('checkRobots').checked;
+            const checkSitemap = document.getElementById('checkSitemap').checked;
+            const maxDepth = parseInt(document.getElementById('maxDepth').value);
+            const maxUrls = parseInt(document.getElementById('maxUrls').value);
+            const maxDirectories = parseInt(document.getElementById('maxDirectories').value);
+            const maxFiles = parseInt(document.getElementById('maxFiles').value);
+            
+            // Show progress
+            document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('resultsContainer').style.display = 'none';
+            
+            // Simulate progress
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 10;
+                if (progress > 90) progress = 90;
+                document.getElementById('progressBar').style.width = progress + '%';
+                document.getElementById('progressText').textContent = Math.round(progress) + '%';
+            }, 500);
+            
+            try {
+                const response = await fetch('/crawler', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        target_url: targetUrl,
+                        options: {
+                            crawl_links: crawlLinks,
+                            directory_bruteforce: directoryBruteforce,
+                            file_discovery: fileDiscovery,
+                            check_robots: checkRobots,
+                            check_sitemap: checkSitemap,
+                            max_depth: maxDepth,
+                            max_urls: maxUrls,
+                            max_directories: maxDirectories,
+                            max_files: maxFiles
+                        }
+                    })
+                });
+                
+                const result = await response.json();
+                
+                // Complete progress
+                clearInterval(progressInterval);
+                document.getElementById('progressBar').style.width = '100%';
+                document.getElementById('progressText').textContent = '100%';
+                
+                setTimeout(() => {
+                    document.getElementById('progressContainer').style.display = 'none';
+                    displayResults(result);
+                }, 1000);
+                
+            } catch (error) {
+                clearInterval(progressInterval);
+                document.getElementById('progressContainer').style.display = 'none';
+                alert('Error: ' + error.message);
+            }
+        });
+
+        function displayResults(result) {
+            currentCrawlId = result.crawl_id;
+            
+            if (result.error) {
+                document.getElementById('resultsContainer').innerHTML = `
+                    <div class="alert alert-danger">
+                        <h5><i class="bi bi-exclamation-triangle-fill me-2"></i>Crawl Error</h5>
+                        <p class="mb-0">${result.error}</p>
+                    </div>
+                `;
+            } else {
+                // Statistics
+                displayStatistics(result.crawl_statistics);
+                
+                // Discovered URLs
+                displayDiscoveredUrls(result.discovered_urls);
+                
+                // Directory results
+                displayDirectoryResults(result.directory_bruteforce);
+                
+                // File results
+                displayFileResults(result.file_discovery);
+                
+                // Technologies
+                displayTechnologies(result.technologies);
+                
+                // Forms
+                displayForms(result.forms);
+                
+                // Security headers
+                displaySecurityHeaders(result.security_headers);
+                
+                // Robots and sitemap
+                displayRobotsAndSitemap(result.robots_txt, result.sitemap);
+                
+                // Raw results
+                document.getElementById('rawResultsContent').textContent = JSON.stringify(result, null, 2);
+                
+                // Show download button
+                document.getElementById('downloadBtn').style.display = 'inline-block';
+                document.getElementById('downloadBtn').onclick = () => downloadResults(result.crawl_id);
+            }
+            
+            document.getElementById('resultsContainer').style.display = 'block';
+        }
+
+        function displayStatistics(stats) {
+            const html = `
+                <div class="statistics-card">
+                    <h5><i class="bi bi-bar-chart me-2"></i>Crawl Statistics</h5>
+                    <div class="row">
+                        <div class="col-md-3 text-center">
+                            <div class="h3 text-primary">${stats.total_urls_found || 0}</div>
+                            <small class="text-muted">URLs Found</small>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="h3 text-success">${stats.total_directories_found || 0}</div>
+                            <small class="text-muted">Directories Found</small>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="h3 text-info">${stats.total_files_found || 0}</div>
+                            <small class="text-muted">Files Found</small>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="h3 text-warning">${stats.forms_found || 0}</div>
+                            <small class="text-muted">Forms Found</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('crawlStatistics').innerHTML = html;
+        }
+
+        function displayDiscoveredUrls(urls) {
+            let html = '';
+            if (urls.length === 0) {
+                html = '<p class="text-muted">No URLs discovered during crawling.</p>';
+            } else {
+                urls.forEach(url => {
+                    const statusClass = `status-${url.status}`;
+                    html += `
+                        <div class="url-item ${statusClass}">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">${url.title || 'No Title'}</h6>
+                                    <small class="text-muted">${url.url}</small>
+                                    <div class="mt-1">
+                                        <span class="badge bg-primary me-1">Status: ${url.status}</span>
+                                        <span class="badge bg-secondary me-1">Depth: ${url.depth}</span>
+                                        <span class="badge bg-info">${(url.size / 1024).toFixed(1)} KB</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            document.getElementById('discoveredUrlsContent').innerHTML = html;
+        }
+
+        function displayDirectoryResults(directories) {
+            let html = '';
+            if (directories.length === 0) {
+                html = '<p class="text-muted">No directory bruteforce results.</p>';
+            } else {
+                const interestingDirs = directories.filter(d => d.status && [200, 301, 302, 403].includes(d.status));
+                const failedDirs = directories.filter(d => !d.status || ![200, 301, 302, 403].includes(d.status));
+                
+                if (interestingDirs.length > 0) {
+                    html += '<h6>Interesting Directories Found:</h6>';
+                    interestingDirs.forEach(dir => {
+                        const statusClass = `status-${dir.status}`;
+                        html += `
+                            <div class="url-item ${statusClass}">
+                                <strong>/${dir.directory}/</strong>
+                                <span class="badge bg-primary ms-2">Status: ${dir.status}</span>
+                                ${dir.size ? `<span class="badge bg-info ms-1">${(dir.size / 1024).toFixed(1)} KB</span>` : ''}
+                            </div>
+                        `;
+                    });
+                }
+                
+                if (failedDirs.length > 0) {
+                    html += `<p class="text-muted mt-3"><small>${failedDirs.length} directories returned 404 or error responses.</small></p>`;
+                }
+            }
+            document.getElementById('directoryResultsContent').innerHTML = html;
+        }
+
+        function displayFileResults(files) {
+            let html = '';
+            if (files.length === 0) {
+                html = '<p class="text-muted">No file discovery results.</p>';
+            } else {
+                const foundFiles = files.filter(f => f.status === 200);
+                const otherFiles = files.filter(f => f.status !== 200 && f.status !== 0);
+                
+                if (foundFiles.length > 0) {
+                    html += '<h6>Files Found:</h6>';
+                    foundFiles.forEach(file => {
+                        html += `
+                            <div class="url-item status-200">
+                                <strong>${file.filename}</strong>
+                                <span class="badge bg-success ms-2">Found</span>
+                                ${file.size ? `<span class="badge bg-info ms-1">${(file.size / 1024).toFixed(1)} KB</span>` : ''}
+                                ${file.content_type ? `<small class="text-muted d-block">${file.content_type}</small>` : ''}
+                            </div>
+                        `;
+                    });
+                }
+                
+                if (otherFiles.length > 0) {
+                    html += '<h6 class="mt-3">Other Status Codes:</h6>';
+                    otherFiles.forEach(file => {
+                        const statusClass = `status-${file.status}`;
+                        html += `
+                            <div class="url-item ${statusClass}">
+                                <strong>${file.filename}</strong>
+                                <span class="badge bg-warning ms-2">Status: ${file.status}</span>
+                            </div>
+                        `;
+                    });
+                }
+                
+                const notFoundCount = files.filter(f => f.status === 404 || f.status === 0).length;
+                if (notFoundCount > 0) {
+                    html += `<p class="text-muted mt-3"><small>${notFoundCount} files were not found (404).</small></p>`;
+                }
+            }
+            document.getElementById('fileResultsContent').innerHTML = html;
+        }
+
+        function displayTechnologies(technologies) {
+            let html = '';
+            if (technologies.length === 0) {
+                html = '<p class="text-muted">No technologies detected.</p>';
+            } else {
+                technologies.forEach(tech => {
+                    html += `<span class="badge tech-badge me-2 mb-2">${tech}</span>`;
+                });
+            }
+            document.getElementById('technologiesContent').innerHTML = html;
+        }
+
+        function displayForms(forms) {
+            let html = '';
+            if (forms.length === 0) {
+                html = '<p class="text-muted">No forms found during crawling.</p>';
+            } else {
+                forms.forEach((form, index) => {
+                    html += `
+                        <div class="url-item">
+                            <h6>Form ${index + 1}</h6>
+                            <p><strong>URL:</strong> <code>${form.url}</code></p>
+                            <p><strong>Action:</strong> <code>${form.action || 'Current page'}</code></p>
+                            <p><strong>Method:</strong> <span class="badge form-badge">${form.method}</span></p>
+                            ${form.inputs && form.inputs.length > 0 ? `
+                                <p><strong>Inputs:</strong></p>
+                                <ul>
+                                    ${form.inputs.map(input => `
+                                        <li>${input.type} - ${input.name || input.id || 'unnamed'}</li>
+                                    `).join('')}
+                                </ul>
+                            ` : ''}
+                        </div>
+                    `;
+                });
+            }
+            document.getElementById('formsContent').innerHTML = html;
+        }
+
+        function displaySecurityHeaders(headers) {
+            let html = '';
+            if (Object.keys(headers).length === 0) {
+                html = '<p class="text-muted">No security header information available.</p>';
+            } else {
+                Object.entries(headers).forEach(([name, info]) => {
+                    if (name === 'cookies') {
+                        if (info.length > 0) {
+                            html += '<h6>Cookies Analysis:</h6>';
+                            info.forEach(cookie => {
+                                const securityIssues = [];
+                                if (!cookie.secure) securityIssues.push('Not Secure');
+                                if (!cookie.httponly) securityIssues.push('Not HttpOnly');
+                                if (!cookie.samesite) securityIssues.push('No SameSite');
+                                
+                                html += `
+                                    <div class="url-item">
+                                        <strong>${cookie.name}</strong>
+                                        ${securityIssues.length > 0 ? 
+                                            `<span class="security-bad ms-2">⚠ ${securityIssues.join(', ')}</span>` :
+                                            `<span class="security-good ms-2">✓ Secure</span>`
+                                        }
+                                    </div>
+                                `;
+                            });
+                        }
+                        return;
+                    }
+                    
+                    if (typeof info === 'object') {
+                        const statusIcon = info.present ? '✓' : '✗';
+                        const statusClass = info.present ? 'security-good' : 'security-bad';
+                        
+                        html += `
+                            <div class="url-item">
+                                <span class="${statusClass}"><strong>${statusIcon} ${name}</strong></span>
+                                ${info.present ? 
+                                    `<br><small class="text-muted">${info.value}</small>` :
+                                    `<br><small class="text-muted">${info.recommendation}</small>`
+                                }
+                            </div>
+                        `;
+                    }
+                });
+            }
+            document.getElementById('securityHeadersContent').innerHTML = html;
+        }
+
+        function displayRobotsAndSitemap(robots, sitemaps) {
+            let html = '';
+            
+            // Robots.txt
+            html += '<h6>Robots.txt Analysis:</h6>';
+            if (robots.exists) {
+                html += `
+                    <div class="url-item status-200">
+                        <strong>✓ robots.txt found</strong>
+                        ${robots.disallowed_paths && robots.disallowed_paths.length > 0 ? `
+                            <p class="mt-2 mb-1"><strong>Disallowed paths:</strong></p>
+                            <ul class="mb-0">
+                                ${robots.disallowed_paths.map(path => `<li><code>${path}</code></li>`).join('')}
+                            </ul>
+                        ` : ''}
+                        ${robots.sitemaps && robots.sitemaps.length > 0 ? `
+                            <p class="mt-2 mb-1"><strong>Referenced sitemaps:</strong></p>
+                            <ul class="mb-0">
+                                ${robots.sitemaps.map(url => `<li><code>${url}</code></li>`).join('')}
+                            </ul>
+                        ` : ''}
+                    </div>
+                `;
+            } else {
+                html += '<div class="url-item status-404"><strong>✗ robots.txt not found</strong></div>';
+            }
+            
+            // Sitemaps
+            html += '<h6 class="mt-3">Sitemap Analysis:</h6>';
+            if (sitemaps.length === 0) {
+                html += '<div class="url-item status-404"><strong>✗ No sitemaps found</strong></div>';
+            } else {
+                sitemaps.forEach(sitemap => {
+                    html += `
+                        <div class="url-item status-200">
+                            <strong>✓ Sitemap found: ${sitemap.url}</strong>
+                            <p class="mb-1">Size: ${(sitemap.size / 1024).toFixed(1)} KB</p>
+                            ${sitemap.urls && sitemap.urls.length > 0 ? 
+                                `<p class="mb-0">${sitemap.urls.length} URLs listed in sitemap</p>` : ''
+                            }
+                        </div>
+                    `;
+                });
+            }
+            
+            document.getElementById('robotsAndSitemapContent').innerHTML = html;
+        }
+
+        function downloadResults(crawlId) {
+            window.location.href = `/crawler/${crawlId}/download`;
+        }
+    </script>
+</body>
+</html>
