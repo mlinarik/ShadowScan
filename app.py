@@ -18,6 +18,9 @@ import re
 import socket
 import requests
 import ipaddress
+import ssl
+import concurrent.futures
+from urllib.parse import urlparse
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'
@@ -30,6 +33,9 @@ scan_processes = {}
 
 # Store lookup results
 lookup_results = {}
+
+# Store SSL scan results
+ssl_scan_results = {}
 
 class NmapScanner:
     def __init__(self):
@@ -387,8 +393,314 @@ class IPDomainLookup:
         
         return "WHOIS information not available"
 
+class SSLTLSScanner:
+    def __init__(self):
+        self.supported_protocols = ['TLSv1', 'TLSv1.1', 'TLSv1.2', 'TLSv1.3', 'SSLv3', 'SSLv23']
+    
+    def scan_ssl_tls(self, target, options):
+        """Perform comprehensive SSL/TLS analysis"""
+        start_time = time.time()
+        
+        # Parse target
+        parsed_target = self._parse_target(target)
+        if not parsed_target:
+            return {'error': 'Invalid target format'}
+        
+        host, port = parsed_target
+        
+        result = {
+            'timestamp': datetime.datetime.now().isoformat(),
+            'target': target,
+            'host': host,
+            'port': port,
+            'response_time_ms': 0,
+            'certificate_info': {},
+            'protocol_support': {},
+            'cipher_suites': [],
+            'vulnerabilities': [],
+            'security_rating': 'Unknown'
+        }
+        
+        try:
+            # Get certificate information
+            result['certificate_info'] = self._get_certificate_info(host, port)
+            
+            # Test protocol support
+            if options.get('test_protocols', True):
+                result['protocol_support'] = self._test_protocol_support(host, port)
+            
+            # Get cipher suites
+            if options.get('test_ciphers', True):
+                result['cipher_suites'] = self._get_cipher_suites(host, port)
+            
+            # Check for vulnerabilities
+            if options.get('check_vulnerabilities', True):
+                result['vulnerabilities'] = self._check_vulnerabilities(host, port, result)
+            
+            # Calculate security rating
+            result['security_rating'] = self._calculate_security_rating(result)
+            
+        except Exception as e:
+            result['error'] = str(e)
+        
+        result['response_time_ms'] = int((time.time() - start_time) * 1000)
+        return result
+    
+    def _parse_target(self, target):
+        """Parse target to extract host and port"""
+        try:
+            # Handle URLs
+            if target.startswith(('http://', 'https://')):
+                parsed = urlparse(target)
+                host = parsed.hostname
+                port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+                return host, port
+            
+            # Handle host:port format
+            if ':' in target:
+                parts = target.split(':')
+                if len(parts) == 2:
+                    host = parts[0]
+                    port = int(parts[1])
+                    return host, port
+            
+            # Default to HTTPS port
+            return target, 443
+            
+        except Exception:
+            return None
+    
+    def _get_certificate_info(self, host, port):
+        """Get SSL certificate information"""
+        cert_info = {}
+        try:
+            # Create SSL context
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            
+            # Connect and get certificate
+            with socket.create_connection((host, port), timeout=10) as sock:
+                with context.wrap_socket(sock, server_hostname=host) as ssock:
+                    cert = ssock.getpeercert()
+                    cert_der = ssock.getpeercert(binary_form=True)
+                    
+                    if cert:
+                        cert_info = {
+                            'subject': dict(x[0] for x in cert['subject']),
+                            'issuer': dict(x[0] for x in cert['issuer']),
+                            'version': cert.get('version'),
+                            'serial_number': cert.get('serialNumber'),
+                            'not_before': cert.get('notBefore'),
+                            'not_after': cert.get('notAfter'),
+                            'signature_algorithm': cert.get('signatureAlgorithm'),
+                            'san': cert.get('subjectAltName', []),
+                            'key_size': self._get_key_size(cert_der) if cert_der else 'Unknown'
+                        }
+                        
+                        # Check if certificate is expired
+                        import datetime
+                        try:
+                            not_after = datetime.datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
+                            cert_info['is_expired'] = not_after < datetime.datetime.now()
+                            cert_info['expires_in_days'] = (not_after - datetime.datetime.now()).days
+                        except:
+                            cert_info['is_expired'] = False
+                            cert_info['expires_in_days'] = 'Unknown'
+        
+        except Exception as e:
+            cert_info['error'] = str(e)
+        
+        return cert_info
+    
+    def _get_key_size(self, cert_der):
+        """Extract key size from certificate"""
+        try:
+            # This is a simplified key size extraction
+            # In practice, you'd use a proper ASN.1 parser
+            from cryptography import x509
+            from cryptography.hazmat.primitives import hashes
+            
+            cert = x509.load_der_x509_certificate(cert_der)
+            public_key = cert.public_key()
+            
+            if hasattr(public_key, 'key_size'):
+                return public_key.key_size
+            
+            return 'Unknown'
+        except:
+            return 'Unknown'
+    
+    def _test_protocol_support(self, host, port):
+        """Test SSL/TLS protocol support"""
+        protocols = {}
+        
+        # Test different protocol versions
+        test_protocols = {
+            'SSLv3': ssl.PROTOCOL_SSLv23,
+            'TLSv1': ssl.PROTOCOL_TLSv1 if hasattr(ssl, 'PROTOCOL_TLSv1') else None,
+            'TLSv1.1': ssl.PROTOCOL_TLSv1_1 if hasattr(ssl, 'PROTOCOL_TLSv1_1') else None,
+            'TLSv1.2': ssl.PROTOCOL_TLSv1_2 if hasattr(ssl, 'PROTOCOL_TLSv1_2') else None,
+            'TLSv1.3': ssl.PROTOCOL_TLS if hasattr(ssl, 'PROTOCOL_TLS') else None
+        }
+        
+        for protocol_name, protocol in test_protocols.items():
+            if protocol is None:
+                protocols[protocol_name] = {'supported': False, 'reason': 'Not available in Python version'}
+                continue
+                
+            try:
+                context = ssl.SSLContext(protocol)
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                
+                with socket.create_connection((host, port), timeout=5) as sock:
+                    with context.wrap_socket(sock) as ssock:
+                        protocols[protocol_name] = {
+                            'supported': True,
+                            'cipher': ssock.cipher()[0] if ssock.cipher() else 'Unknown'
+                        }
+            except Exception as e:
+                protocols[protocol_name] = {'supported': False, 'reason': str(e)}
+        
+        return protocols
+    
+    def _get_cipher_suites(self, host, port):
+        """Get supported cipher suites"""
+        cipher_suites = []
+        
+        try:
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            
+            with socket.create_connection((host, port), timeout=10) as sock:
+                with context.wrap_socket(sock, server_hostname=host) as ssock:
+                    cipher = ssock.cipher()
+                    if cipher:
+                        cipher_suites.append({
+                            'name': cipher[0],
+                            'protocol': cipher[1],
+                            'bits': cipher[2]
+                        })
+                        
+                        # Get shared ciphers if available
+                        if hasattr(ssock, 'shared_ciphers'):
+                            shared = ssock.shared_ciphers()
+                            if shared:
+                                for c in shared[:10]:  # Limit to first 10
+                                    cipher_suites.append({
+                                        'name': c[0],
+                                        'protocol': c[1],
+                                        'bits': c[2]
+                                    })
+        
+        except Exception as e:
+            cipher_suites.append({'error': str(e)})
+        
+        return cipher_suites
+    
+    def _check_vulnerabilities(self, host, port, scan_result):
+        """Check for common SSL/TLS vulnerabilities"""
+        vulnerabilities = []
+        
+        # Check for expired certificate
+        cert_info = scan_result.get('certificate_info', {})
+        if cert_info.get('is_expired'):
+            vulnerabilities.append({
+                'name': 'Expired Certificate',
+                'severity': 'HIGH',
+                'description': 'The SSL certificate has expired'
+            })
+        
+        # Check for certificate expiring soon
+        expires_in = cert_info.get('expires_in_days')
+        if isinstance(expires_in, int) and expires_in < 30:
+            vulnerabilities.append({
+                'name': 'Certificate Expiring Soon',
+                'severity': 'MEDIUM',
+                'description': f'Certificate expires in {expires_in} days'
+            })
+        
+        # Check for weak protocols
+        protocols = scan_result.get('protocol_support', {})
+        weak_protocols = ['SSLv3', 'TLSv1', 'TLSv1.1']
+        
+        for protocol in weak_protocols:
+            if protocols.get(protocol, {}).get('supported'):
+                vulnerabilities.append({
+                    'name': f'Weak Protocol: {protocol}',
+                    'severity': 'HIGH' if protocol == 'SSLv3' else 'MEDIUM',
+                    'description': f'Server supports deprecated protocol {protocol}'
+                })
+        
+        # Check for weak key size
+        key_size = cert_info.get('key_size')
+        if isinstance(key_size, int) and key_size < 2048:
+            vulnerabilities.append({
+                'name': 'Weak Key Size',
+                'severity': 'HIGH',
+                'description': f'Certificate uses weak key size: {key_size} bits'
+            })
+        
+        # Check cipher suites for weak ciphers
+        cipher_suites = scan_result.get('cipher_suites', [])
+        weak_ciphers = ['RC4', 'DES', '3DES', 'MD5', 'SHA1']
+        
+        for cipher in cipher_suites:
+            if isinstance(cipher, dict) and 'name' in cipher:
+                cipher_name = cipher['name'].upper()
+                for weak in weak_ciphers:
+                    if weak in cipher_name:
+                        vulnerabilities.append({
+                            'name': f'Weak Cipher: {cipher["name"]}',
+                            'severity': 'MEDIUM',
+                            'description': f'Server supports weak cipher suite'
+                        })
+                        break
+        
+        return vulnerabilities
+    
+    def _calculate_security_rating(self, scan_result):
+        """Calculate overall security rating"""
+        score = 100
+        
+        vulnerabilities = scan_result.get('vulnerabilities', [])
+        
+        # Deduct points for vulnerabilities
+        for vuln in vulnerabilities:
+            severity = vuln.get('severity', 'LOW')
+            if severity == 'HIGH':
+                score -= 20
+            elif severity == 'MEDIUM':
+                score -= 10
+            elif severity == 'LOW':
+                score -= 5
+        
+        # Check protocol support
+        protocols = scan_result.get('protocol_support', {})
+        if not protocols.get('TLSv1.3', {}).get('supported'):
+            score -= 5
+        if not protocols.get('TLSv1.2', {}).get('supported'):
+            score -= 10
+        
+        # Rating scale
+        if score >= 90:
+            return 'A+'
+        elif score >= 80:
+            return 'A'
+        elif score >= 70:
+            return 'B'
+        elif score >= 60:
+            return 'C'
+        elif score >= 50:
+            return 'D'
+        else:
+            return 'F'
+
 scanner = NmapScanner()
 lookup_tool = IPDomainLookup()
+ssl_scanner = SSLTLSScanner()
 
 @app.route('/')
 def home():
@@ -401,6 +713,10 @@ def nmap_scanner():
 @app.route('/lookup')
 def lookup_page():
     return render_template('lookup.html')
+
+@app.route('/ssl')
+def ssl_page():
+    return render_template('ssl.html')
 
 @app.route('/lookup', methods=['POST'])
 def perform_lookup():
@@ -423,6 +739,47 @@ def perform_lookup():
     lookup_results[lookup_id] = result
     
     return jsonify(result)
+
+@app.route('/ssl', methods=['POST'])
+def perform_ssl_scan():
+    data = request.get_json()
+    
+    target = data.get('target')
+    options = data.get('options', {})
+    
+    if not target:
+        return jsonify({'error': 'Target is required'}), 400
+    
+    # Generate scan ID
+    ssl_scan_id = str(uuid.uuid4())
+    
+    # Perform SSL scan
+    result = ssl_scanner.scan_ssl_tls(target, options)
+    result['scan_id'] = ssl_scan_id
+    
+    # Store result
+    ssl_scan_results[ssl_scan_id] = result
+    
+    return jsonify(result)
+
+@app.route('/ssl/<ssl_scan_id>/download')
+def download_ssl_result(ssl_scan_id):
+    if ssl_scan_id not in ssl_scan_results:
+        return jsonify({'error': 'SSL scan not found'}), 404
+    
+    # Create filename
+    result = ssl_scan_results[ssl_scan_id]
+    filename = f"ssl_scan_{result['target'].replace('/', '_').replace(':', '_')}_{ssl_scan_id[:8]}.json"
+    filepath = os.path.join('scan_results', filename)
+    
+    # Ensure directory exists
+    os.makedirs('scan_results', exist_ok=True)
+    
+    # Save result to file
+    with open(filepath, 'w') as f:
+        json.dump(result, f, indent=2)
+    
+    return send_file(filepath, as_attachment=True, download_name=filename)
 
 @app.route('/lookup/<lookup_id>/download')
 def download_lookup_result(lookup_id):
