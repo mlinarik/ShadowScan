@@ -1,3 +1,78 @@
+# --- Web Vulnerability Scanner ---
+import html
+
+class WebVulnScanner:
+    def __init__(self):
+        pass
+
+    def scan(self, url, scan_xss=True, scan_sqli=True, scan_misconfig=True):
+        vulnerabilities = []
+        try:
+            resp = requests.get(url, timeout=10)
+            content = resp.text
+        except Exception as e:
+            return [{'type': 'Error', 'severity': 'High', 'description': f'Could not fetch URL: {e}'}]
+
+        # XSS check: look for reflected input in forms
+        if scan_xss:
+            soup = BeautifulSoup(content, 'html.parser')
+            forms = soup.find_all('form')
+            for form in forms:
+                inputs = form.find_all('input')
+                for inp in inputs:
+                    if inp.get('type') in [None, 'text', 'search', 'email']:
+                        # Simulate reflected XSS by submitting a payload
+                        action = form.get('action') or url
+                        test_url = urljoin(url, action)
+                        payload = '<script>alert(1)</script>'
+                        data = {inp.get('name','test'): payload}
+                        try:
+                            r = requests.post(test_url, data=data, timeout=5)
+                            if html.escape(payload) in r.text or payload in r.text:
+                                vulnerabilities.append({'type': 'XSS', 'severity': 'High', 'description': f'Reflected XSS possible in form at {test_url}.'})
+                        except Exception:
+                            continue
+
+        # SQLi check: look for SQL error messages
+        if scan_sqli:
+            sqli_payloads = ["'", '"', ' OR 1=1--', ' OR "1"="1"--']
+            for payload in sqli_payloads:
+                try:
+                    r = requests.get(url, params={'id': payload}, timeout=5)
+                    if any(err in r.text.lower() for err in ['sql syntax', 'mysql', 'syntax error', 'unclosed quotation mark', 'sqlite', 'pg_query']):
+                        vulnerabilities.append({'type': 'SQL Injection', 'severity': 'High', 'description': f'SQL error detected with payload {payload}.'})
+                        break
+                except Exception:
+                    continue
+
+        # Misconfiguration check: look for .git, .env, admin, backup files
+        if scan_misconfig:
+            paths = ['/.git/', '/.env', '/admin', '/backup', '/phpinfo.php']
+            for path in paths:
+                try:
+                    r = requests.get(urljoin(url, path), timeout=5)
+                    if r.status_code == 200 and len(r.text) > 20:
+                        vulnerabilities.append({'type': 'Misconfiguration', 'severity': 'Medium', 'description': f'Accessible sensitive path: {path}'})
+                except Exception:
+                    continue
+
+        return vulnerabilities
+
+# Flask routes for vuln scanner
+@app.route('/vulnscan', methods=['GET'])
+def vulnscan_ui():
+    return render_template('vulnscan.html')
+
+@app.route('/vulnscan', methods=['POST'])
+def vulnscan_api():
+    data = request.get_json()
+    url = data.get('targetUrl')
+    scan_xss = data.get('scan_xss', True)
+    scan_sqli = data.get('scan_sqli', True)
+    scan_misconfig = data.get('scan_misconfig', True)
+    scanner = WebVulnScanner()
+    vulns = scanner.scan(url, scan_xss, scan_sqli, scan_misconfig)
+    return jsonify({'vulnerabilities': vulns})
 #!/usr/bin/env python3
 """
 ShadowScan - Security Scanning Suite
