@@ -1,4 +1,6 @@
 # --- Web Vulnerability Scanner ---
+
+# --- Web Vulnerability Scanner ---
 import html
 
 class WebVulnScanner:
@@ -58,21 +60,7 @@ class WebVulnScanner:
 
         return vulnerabilities
 
-# Flask routes for vuln scanner
-@app.route('/vulnscan', methods=['GET'])
-def vulnscan_ui():
-    return render_template('vulnscan.html')
-
-@app.route('/vulnscan', methods=['POST'])
-def vulnscan_api():
-    data = request.get_json()
-    url = data.get('targetUrl')
-    scan_xss = data.get('scan_xss', True)
-    scan_sqli = data.get('scan_sqli', True)
-    scan_misconfig = data.get('scan_misconfig', True)
-    scanner = WebVulnScanner()
-    vulns = scanner.scan(url, scan_xss, scan_sqli, scan_misconfig)
-    return jsonify({'vulnerabilities': vulns})
+# Flask routes for vuln scanner (moved below app initialization)
 #!/usr/bin/env python3
 """
 ShadowScan - Security Scanning Suite
@@ -115,6 +103,22 @@ scan_processes = {}
 
 # Store lookup results
 lookup_results = {}
+
+# Flask routes for vuln scanner (must be after app = Flask(__name__))
+@app.route('/vulnscan', methods=['GET'])
+def vulnscan_ui():
+    return render_template('vulnscan.html')
+
+@app.route('/vulnscan', methods=['POST'])
+def vulnscan_api():
+    data = request.get_json()
+    url = data.get('targetUrl')
+    scan_xss = data.get('scan_xss', True)
+    scan_sqli = data.get('scan_sqli', True)
+    scan_misconfig = data.get('scan_misconfig', True)
+    scanner = WebVulnScanner()
+    vulns = scanner.scan(url, scan_xss, scan_sqli, scan_misconfig)
+    return jsonify({'vulnerabilities': vulns})
 
 # Store SSL scan results
 ssl_scan_results = {}
@@ -1912,4 +1916,4 @@ def download_scan_result(scan_id):
     return send_file(filepath, as_attachment=True, download_name=filename)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=8080, debug=True)

@@ -2,7 +2,7 @@ services:
   nmap-scanner:
     build: .
     ports:
-      - "5000:5000"
+      - "8080:8080"
     volumes:
       - ./scan_results:/app/scan_results
     environment:
