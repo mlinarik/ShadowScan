@@ -1,15 +1,3 @@
-# ShadowScan - Security Scanning Suite
-
-A comprehensive web-based security scanning platform featuring multiple reconnaissance and analysis tools. ShadowScan provides an intuitive interface for network discovery, vulnerability assessment, and security analysis.
-
-## 🚀 Features
-
-### 🔍 Available Tools
-
-#### Nmap Scanner
-Advanced network scanning and service discovery with a clean web interface.
-
-**Scan Types:**
 
 # ShadowScan - Security Scanning Suite
 
