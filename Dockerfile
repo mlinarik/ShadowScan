@@ -21,8 +21,8 @@ COPY . .
 # Create directory for scan results
 RUN mkdir -p /app/scan_results
 
-# Expose port 5000
-EXPOSE 5000
+# Expose port 8080
+EXPOSE 8080
 
-# Run the application
+# Run the application on port 8080
 CMD ["python", "app.py"]
