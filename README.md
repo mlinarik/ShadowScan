@@ -12,7 +12,10 @@ ShadowScan is a comprehensive web-based security scanning platform featuring mul
 - Downloadable scan results
 
 ### Web Vulnerability Scanner
-- Automated web vulnerability checks (future expansion)
+- XSS (Cross-Site Scripting) detection
+- SQL injection vulnerability testing
+- Misconfiguration checks for sensitive files
+- Real-time vulnerability results
 
 ### Web Crawler & Directory Discovery
 - Crawls websites, discovers URLs, forms, and technologies
@@ -160,19 +163,74 @@ If you prefer to run without Docker:
 
 The application provides a REST API for programmatic access:
 
+### Nmap Scanner
 - `POST /scan` - Start a new nmap scan
 - `GET /scan/<scan_id>/status` - Check scan status
 - `GET /scan/<scan_id>/result` - Get scan results
+- `POST /scan/<scan_id>/cancel` - Cancel a running scan
 - `GET /scans` - List all scans
 - `GET /scan/<scan_id>/download` - Download nmap scan results
+
+### Web Crawler
 - `POST /crawler` - Start web crawl
 - `GET /crawler/<crawl_id>/download` - Download crawl result
+
+### DNS Toolkit
 - `POST /dns` - Start DNS analysis
 - `GET /dns/<dns_id>/download` - Download DNS result
+
+### SSL/TLS Scanner
 - `POST /ssl` - Start SSL/TLS scan
 - `GET /ssl/<ssl_scan_id>/download` - Download SSL result
+
+### IP/Domain Lookup
 - `POST /lookup` - Start IP/domain lookup
 - `GET /lookup/<lookup_id>/download` - Download lookup result
+
+### Web Vulnerability Scanner
+- `POST /vulnscan` - Start vulnerability scan
+
+### Example API Usage
+
+Start an nmap scan:
+```bash
+curl -X POST http://localhost:8080/scan \
+  -H "Content-Type: application/json" \
+  -d '{
+    "target": "scanme.nmap.org",
+    "scan_type": "tcp_syn",
+    "ports": "22,80,443",
+    "options": {
+      "timing": "4",
+      "verbose": true
+    }
+  }'
+```
+
+Check scan status:
+```bash
+curl http://localhost:8080/scan/<scan_id>/status
+```
+
+Get scan results:
+```bash
+curl http://localhost:8080/scan/<scan_id>/result
+```
+
+Start a web crawl:
+```bash
+curl -X POST http://localhost:8080/crawler \
+  -H "Content-Type: application/json" \
+  -d '{
+    "target_url": "https://example.com",
+    "options": {
+      "crawl_links": true,
+      "directory_bruteforce": true,
+      "max_depth": 2,
+      "max_urls": 50
+    }
+  }'
+```
 
 ## File Structure
 
@@ -182,14 +240,20 @@ The application provides a REST API for programmatic access:
 ├── docker-compose.yml      # Docker Compose setup
 ├── requirements.txt        # Python dependencies
 ├── app.py                  # Main Flask application
+├── docker-run.sh           # Linux/macOS Docker run script
+├── docker-run.ps1          # Windows PowerShell Docker run script
+├── run.sh                  # Linux/macOS run script
+├── run.ps1                 # Windows PowerShell run script
+├── deploy.ps1              # Windows deployment script
 ├── templates/              # HTML templates for each tool
-│   ├── index.html
-│   ├── nmap.html
-│   ├── lookup.html
-│   ├── ssl.html
-│   ├── crawler.html
-│   ├── dns.html
-│   └── vulnscan.html
+│   ├── index.html          # Main dashboard
+│   ├── home.html           # Home page template
+│   ├── nmap.html           # Nmap scanner interface
+│   ├── lookup.html         # IP/Domain lookup interface
+│   ├── ssl.html            # SSL/TLS scanner interface
+│   ├── crawler.html        # Web crawler interface
+│   ├── dns.html            # DNS toolkit interface
+│   └── vulnscan.html       # Vulnerability scanner interface
 ├── scan_results/           # Directory for exported scan results
 └── README.md               # This file
 ```
@@ -244,5 +308,8 @@ docker exec shadowscan nmap -sS -T4 scanme.nmap.org
 
 ## License
 
-MIT License
-```
+This project is provided as-is for educational and authorized testing purposes. Users are responsible for ensuring compliance with applicable laws and regulations.
+
+## Disclaimer
+
+This tool is designed for legitimate network security testing and administration. Users must ensure they have proper authorization before scanning any networks or systems. The authors are not responsible for any misuse of this software.
